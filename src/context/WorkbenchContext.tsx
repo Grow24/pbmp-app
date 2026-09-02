@@ -97,9 +97,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const [expandedIds, setExpandedIds] = useState<string[]>([])
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const [rightOpen, setRightOpen] = useState(() =>
-    typeof window === 'undefined' ? true : window.innerWidth >= 1280,
-  )
+  const [rightOpen, setRightOpen] = useState(false)
   const [rightTab, setRightTab] = useState<RightTab>('chat')
   const [search, setSearch] = useState('')
   const [chat, setChat] = useState<ChatMessage[]>([])
