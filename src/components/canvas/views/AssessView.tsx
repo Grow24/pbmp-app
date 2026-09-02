@@ -7,12 +7,12 @@ const alertClass: Record<string, string> = {
 }
 
 export function AssessView() {
-  const { blocks } = useWorkbench()
+  const { blocks, filterItems } = useWorkbench()
   const items = blocks('assess')
   const summary = items.find((item) => item.blockType === 'assess_summary')
   const metrics = items.filter((item) => item.blockType === 'assess_metric')
-  const alerts = items.filter((item) => item.blockType === 'assess_alert')
-  const capabilities = items.filter((item) => item.blockType === 'capability')
+  const alerts = filterItems(items.filter((item) => item.blockType === 'assess_alert'))
+  const capabilities = filterItems(items.filter((item) => item.blockType === 'capability'))
 
   return (
     <div className="mx-auto max-w-6xl space-y-3">

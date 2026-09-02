@@ -1,9 +1,9 @@
 import { useWorkbench } from '../../../context/WorkbenchContext'
 
 export function InquiryView() {
-  const { blocks } = useWorkbench()
+  const { blocks, filterItems } = useWorkbench()
   const intro = blocks('inquiry').find((item) => item.blockType === 'inquiry_intro')
-  const questions = blocks('inquiry').filter((item) => item.blockType === 'inquiry')
+  const questions = filterItems(blocks('inquiry').filter((item) => item.blockType === 'inquiry'))
 
   return (
     <div className="mx-auto max-w-3xl space-y-3">

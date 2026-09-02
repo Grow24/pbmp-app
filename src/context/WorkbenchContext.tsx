@@ -8,6 +8,11 @@ import {
   type ReactNode,
 } from 'react'
 import { api } from '../lib/api'
+import { applyFilters } from '../components/filter/applyFilter'
+import { fieldIdsForPage } from '../components/filter/catalog'
+import { blockToRecord } from '../components/filter/records'
+import { filtersForPage } from '../components/filter/scope'
+import type { SavedFilter } from '../components/filter/types'
 import type {
   AppSettings,
   BootstrapData,
@@ -55,6 +60,10 @@ type WorkbenchContextValue = {
   setRightTab: (value: RightTab) => void
   setSearch: (value: string) => void
   sendChat: (text: string) => void
+  savedFilters: SavedFilter[]
+  activeFilterIds: number[]
+  toggleFilter: (id: number) => void
+  filterItems: <T extends ContentBlock>(items: T[]) => T[]
 }
 
 const WorkbenchContext = createContext<WorkbenchContextValue | null>(null)
@@ -94,6 +103,14 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const [rightTab, setRightTab] = useState<RightTab>('chat')
   const [search, setSearch] = useState('')
   const [chat, setChat] = useState<ChatMessage[]>([])
+  const [activeFilterIds, setActiveFilterIds] = useState<number[]>(() => {
+    try {
+      const raw = window.sessionStorage.getItem('pbmp-active-filters')
+      return raw ? (JSON.parse(raw) as number[]) : []
+    } catch {
+      return []
+    }
+  })
 
   const reload = useCallback(async () => {
     const next = await api.bootstrap()
@@ -214,6 +231,34 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     [data],
   )
 
+  const savedFilters = data?.filters ?? []
+
+  useEffect(() => {
+    window.sessionStorage.setItem('pbmp-active-filters', JSON.stringify(activeFilterIds))
+  }, [activeFilterIds])
+
+  const toggleFilter = useCallback((id: number) => {
+    setActiveFilterIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))
+  }, [])
+
+  const filterItems = useCallback(
+    <T extends ContentBlock>(items: T[]) => {
+      const assigned = filtersForPage(savedFilters, viewKind).filter((filter) => activeFilterIds.includes(filter.id))
+      if (!assigned.length) return items
+      const allowed = fieldIdsForPage(viewKind)
+      const records = items.map((item) => blockToRecord(item, viewKind))
+      const kept = new Set(
+        applyFilters(
+          records,
+          assigned.map((filter) => filter.query),
+          allowed,
+        ).map((row) => Number(row.id)),
+      )
+      return items.filter((item) => kept.has(item.id))
+    },
+    [activeFilterIds, savedFilters, viewKind],
+  )
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setMobileNavOpen(false)
@@ -255,6 +300,10 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       setRightTab,
       setSearch,
       sendChat,
+      savedFilters,
+      activeFilterIds,
+      toggleFilter,
+      filterItems,
     }),
     [
       activeSubtab,
@@ -281,7 +330,11 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       settings,
       sidebarCollapsed,
       toggleExpanded,
+      toggleFilter,
       viewKind,
+      savedFilters,
+      activeFilterIds,
+      filterItems,
     ],
   )
 

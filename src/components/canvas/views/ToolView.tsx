@@ -3,10 +3,10 @@ import { getIcon } from '../../../icons'
 import { useWorkbench } from '../../../context/WorkbenchContext'
 
 export function ToolView() {
-  const { selectedItem, canvas, blocks } = useWorkbench()
+  const { selectedItem, canvas, blocks, filterItems } = useWorkbench()
   const Icon = getIcon(selectedItem?.icon)
   const actions = blocks('tool').filter((item) => item.blockType === 'tool_action')
-  const slots = blocks('tool').filter((item) => item.blockType === 'tool_slot')
+  const slots = filterItems(blocks('tool').filter((item) => item.blockType === 'tool_slot'))
 
   return (
     <div className="mx-auto max-w-4xl">

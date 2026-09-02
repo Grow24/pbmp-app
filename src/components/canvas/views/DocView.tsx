@@ -1,9 +1,9 @@
 import { useWorkbench } from '../../../context/WorkbenchContext'
 
 export function DocView() {
-  const { canvas, blocks } = useWorkbench()
+  const { canvas, blocks, filterItems } = useWorkbench()
   const meta = blocks('doc').find((item) => item.blockType === 'doc_meta')
-  const sections = blocks('doc').filter((item) => item.blockType === 'doc_section')
+  const sections = filterItems(blocks('doc').filter((item) => item.blockType === 'doc_section'))
 
   return (
     <div className="mx-auto max-w-3xl ui-card p-6">

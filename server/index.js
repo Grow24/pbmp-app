@@ -5,7 +5,7 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import { pool, waitForDb, ensureSchema, dbConfig } from './db.js'
-import { seedIfEmpty, syncDefaultMenu } from './seed.js'
+import { seedIfEmpty, seedFiltersIfEmpty, syncDefaultMenu } from './seed.js'
 
 dotenv.config()
 
@@ -24,14 +24,55 @@ app.get('/api/health', async (_req, res) => {
   }
 })
 
-function parseExtra(value) {
-  if (!value) return {}
+function parseJson(value, fallback) {
+  if (value == null || value === '') return fallback
   if (typeof value === 'object') return value
   try {
     return JSON.parse(value)
   } catch {
-    return {}
+    return fallback
   }
+}
+
+function parseExtra(value) {
+  return parseJson(value, {})
+}
+
+function slugify(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+}
+
+function mapFilter(row) {
+  const conditions = parseJson(row.conditions_json, []).map((item, index) => ({
+    id: item.id || `c${row.id}-${index}`,
+    field: item.field || '',
+    operator: item.operator || 'contains',
+    value: item.value || '',
+  }))
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    description: row.description || '',
+    scope: row.scope,
+    groupKey: row.group_key,
+    pageKeys: parseJson(row.page_keys, []),
+    query: {
+      combinator: row.combinator || 'and',
+      conditions,
+    },
+    isActive: Boolean(row.is_active),
+    sortOrder: row.sort_order,
+  }
+}
+
+async function loadFilters() {
+  const [rows] = await pool.query('SELECT * FROM saved_filters ORDER BY sort_order, id')
+  return rows.map(mapFilter)
 }
 
 async function loadBootstrap() {
@@ -106,7 +147,7 @@ async function loadBootstrap() {
     })
   }
 
-  return { settings, settingRows, sections: tree, content }
+  return { settings, settingRows, sections: tree, content, filters: await loadFilters() }
 }
 
 app.get('/api/health', (_req, res) => {
@@ -359,6 +400,63 @@ app.delete('/api/content/:id', async (req, res) => {
   res.json({ ok: true })
 })
 
+app.get('/api/filters', async (_req, res) => {
+  res.json(await loadFilters())
+})
+
+app.post('/api/filters', async (req, res) => {
+  const b = req.body || {}
+  const slug = slugify(b.slug || b.name) || `filter-${Date.now()}`
+  const [result] = await pool.query(
+    `INSERT INTO saved_filters
+      (slug, name, description, scope, group_key, page_keys, combinator, conditions_json, is_active, sort_order)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    [
+      slug,
+      b.name,
+      b.description || '',
+      b.scope || 'global',
+      b.groupKey || b.group_key || null,
+      JSON.stringify(b.pageKeys || b.page_keys || []),
+      b.combinator || 'and',
+      JSON.stringify(b.conditions || []),
+      b.isActive === false ? 0 : 1,
+      b.sort_order || 0,
+    ],
+  )
+  const [rows] = await pool.query('SELECT * FROM saved_filters WHERE id = ?', [result.insertId])
+  res.status(201).json(mapFilter(rows[0]))
+})
+
+app.put('/api/filters/:id', async (req, res) => {
+  const b = req.body || {}
+  const slug = slugify(b.slug || b.name)
+  await pool.query(
+    `UPDATE saved_filters SET
+      slug=?, name=?, description=?, scope=?, group_key=?, page_keys=?, combinator=?, conditions_json=?, is_active=?
+     WHERE id=?`,
+    [
+      slug,
+      b.name,
+      b.description || '',
+      b.scope || 'global',
+      b.groupKey || b.group_key || null,
+      JSON.stringify(b.pageKeys || b.page_keys || []),
+      b.combinator || 'and',
+      JSON.stringify(b.conditions || []),
+      b.isActive === false ? 0 : 1,
+      req.params.id,
+    ],
+  )
+  const [rows] = await pool.query('SELECT * FROM saved_filters WHERE id = ?', [req.params.id])
+  res.json(mapFilter(rows[0]))
+})
+
+app.delete('/api/filters/:id', async (req, res) => {
+  await pool.query('DELETE FROM saved_filters WHERE id = ?', [req.params.id])
+  res.json({ ok: true })
+})
+
 if (fs.existsSync(path.join(distDir, 'index.html'))) {
   app.use(express.static(distDir))
   app.use((req, res, next) => {
@@ -380,6 +478,7 @@ async function start() {
   await waitForDb()
   await ensureSchema()
   const seeded = await seedIfEmpty()
+  await seedFiltersIfEmpty()
   await syncDefaultMenu()
   app.listen(port, '0.0.0.0', () => {
     console.log(`PBMP API on http://0.0.0.0:${port}${seeded ? ' (seeded)' : ''}`)

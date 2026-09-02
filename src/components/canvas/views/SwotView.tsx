@@ -8,8 +8,8 @@ const colors: Record<string, string> = {
 }
 
 export function SwotView() {
-  const { blocks } = useWorkbench()
-  const items = blocks('swot').filter((item) => item.blockType === 'swot')
+  const { blocks, filterItems } = useWorkbench()
+  const items = filterItems(blocks('swot').filter((item) => item.blockType === 'swot'))
   const quadrants = ['Strengths', 'Weaknesses', 'Opportunities', 'Threats']
 
   return (

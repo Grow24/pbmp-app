@@ -244,6 +244,78 @@ export async function seedIfEmpty() {
   return true
 }
 
+export async function seedFiltersIfEmpty() {
+  const [rows] = await pool.query('SELECT COUNT(*) AS count FROM saved_filters')
+  if (rows[0].count > 0) return false
+
+  const filters = [
+    {
+      slug: 'all-pages-draft',
+      name: 'Draft work',
+      description: 'Common filter: draft items on every page that has a status field.',
+      scope: 'global',
+      group_key: null,
+      page_keys: [],
+      combinator: 'and',
+      conditions: [{ id: 'c1', field: 'status', operator: 'equals', value: 'Draft' }],
+      sort: 1,
+    },
+    {
+      slug: 'dashboard-priya',
+      name: 'My dashboard items',
+      description: 'Only on Dashboard manager.',
+      scope: 'pages',
+      group_key: null,
+      page_keys: ['dashboard'],
+      combinator: 'and',
+      conditions: [{ id: 'c2', field: 'owner', operator: 'contains', value: 'Priya' }],
+      sort: 2,
+    },
+    {
+      slug: 'report-strategy',
+      name: 'Strategy reports',
+      description: 'Report manager pages: Market Dynamics and Strategy Doc.',
+      scope: 'group',
+      group_key: 'reports',
+      page_keys: [],
+      combinator: 'and',
+      conditions: [{ id: 'c3', field: 'title', operator: 'contains', value: 'strategy' }],
+      sort: 3,
+    },
+    {
+      slug: 'workspace-review',
+      name: 'In review',
+      description: 'Common across workspace pages.',
+      scope: 'group',
+      group_key: 'workspace',
+      page_keys: [],
+      combinator: 'and',
+      conditions: [{ id: 'c4', field: 'status', operator: 'equals', value: 'In review' }],
+      sort: 4,
+    },
+  ]
+
+  for (const filter of filters) {
+    await pool.query(
+      `INSERT INTO saved_filters
+        (slug, name, description, scope, group_key, page_keys, combinator, conditions_json, is_active, sort_order)
+       VALUES (?,?,?,?,?,?,?,?,1,?)`,
+      [
+        filter.slug,
+        filter.name,
+        filter.description,
+        filter.scope,
+        filter.group_key,
+        JSON.stringify(filter.page_keys),
+        filter.combinator,
+        JSON.stringify(filter.conditions),
+        filter.sort,
+      ],
+    )
+  }
+  return true
+}
+
 export async function syncDefaultMenu() {
   await pool.query(
     "UPDATE settings SET setting_value = 'dashboard' WHERE setting_key = 'default_menu' AND setting_value = 'business'",

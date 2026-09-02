@@ -1,8 +1,8 @@
 import { useWorkbench } from '../../../context/WorkbenchContext'
 
 export function AccountView() {
-  const { settings, blocks } = useWorkbench()
-  const fields = blocks('account').filter((item) => item.blockType === 'account_field')
+  const { settings, blocks, filterItems } = useWorkbench()
+  const fields = filterItems(blocks('account').filter((item) => item.blockType === 'account_field'))
 
   return (
     <div className="mx-auto max-w-xl ui-card p-5">

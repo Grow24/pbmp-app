@@ -1,3 +1,5 @@
+import type { SavedFilter } from './components/filter/types'
+
 export type ViewKind =
   | 'dashboard'
   | 'filter'
@@ -85,6 +87,7 @@ export type BootstrapData = {
   settingRows: SettingRow[]
   sections: MenuSection[]
   content: Record<string, Record<string, ContentBlock[]>>
+  filters: SavedFilter[]
 }
 
 export type SettingRow = {

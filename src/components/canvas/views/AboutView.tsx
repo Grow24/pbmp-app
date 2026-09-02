@@ -1,9 +1,9 @@
 import { useWorkbench } from '../../../context/WorkbenchContext'
 
 export function AboutView() {
-  const { blocks } = useWorkbench()
+  const { blocks, filterItems } = useWorkbench()
   const intro = blocks('about').find((item) => item.blockType === 'about_intro')
-  const features = blocks('about').filter((item) => item.blockType === 'about_feature')
+  const features = filterItems(blocks('about').filter((item) => item.blockType === 'about_feature'))
 
   return (
     <div className="mx-auto max-w-2xl ui-card p-6">

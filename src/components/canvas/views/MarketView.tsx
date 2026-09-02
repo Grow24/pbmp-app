@@ -1,8 +1,8 @@
 import { useWorkbench } from '../../../context/WorkbenchContext'
 
 export function MarketView() {
-  const { blocks } = useWorkbench()
-  const signals = blocks('market').filter((item) => item.blockType === 'market_signal')
+  const { blocks, filterItems } = useWorkbench()
+  const signals = filterItems(blocks('market').filter((item) => item.blockType === 'market_signal'))
   const narrative = blocks('market').find((item) => item.blockType === 'market_narrative')
 
   return (

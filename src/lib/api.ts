@@ -1,4 +1,17 @@
+import type { SavedFilter } from '../components/filter/types'
 import type { BootstrapData, DbContent, DbItem, DbSection, DbSubtab, DbTab, SettingRow } from '../types'
+
+export type FilterPayload = {
+  name: string
+  slug?: string
+  description?: string
+  scope: SavedFilter['scope']
+  groupKey?: string | null
+  pageKeys?: string[]
+  combinator: SavedFilter['query']['combinator']
+  conditions: SavedFilter['query']['conditions']
+  isActive?: boolean
+}
 
 const API = '/api'
 
@@ -59,4 +72,11 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   deleteContent: (id: number) => request(`/content/${id}`, { method: 'DELETE' }),
+  filters: () => request<SavedFilter[]>('/filters'),
+  saveFilter: (payload: FilterPayload, id?: number) =>
+    request<SavedFilter>(id ? `/filters/${id}` : '/filters', {
+      method: id ? 'PUT' : 'POST',
+      body: JSON.stringify(payload),
+    }),
+  deleteFilter: (id: number) => request(`/filters/${id}`, { method: 'DELETE' }),
 }

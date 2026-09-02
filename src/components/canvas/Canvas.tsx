@@ -1,5 +1,6 @@
 import { ChevronRight, MessageSquare } from 'lucide-react'
 import { useWorkbench } from '../../context/WorkbenchContext'
+import { PageFilters } from '../filter/PageFilters'
 import { CanvasBody } from './CanvasBody'
 
 export function Canvas() {
@@ -85,6 +86,7 @@ export function Canvas() {
       )}
 
       <div className={`min-h-0 flex-1 overflow-auto p-4 sm:p-5 ${isDiagram ? 'canvas-grid' : 'bg-[#f5f7fa]'}`}>
+        {viewKind !== 'filter' && <PageFilters page={viewKind} />}
         <CanvasBody />
       </div>
     </section>

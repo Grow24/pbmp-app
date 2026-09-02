@@ -117,4 +117,19 @@ export async function ensureSchema() {
       FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE CASCADE
     )
   `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS saved_filters (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      slug VARCHAR(64) NOT NULL UNIQUE,
+      name VARCHAR(120) NOT NULL,
+      description TEXT NULL,
+      scope VARCHAR(20) NOT NULL DEFAULT 'global',
+      group_key VARCHAR(64) NULL,
+      page_keys JSON NULL,
+      combinator VARCHAR(8) NOT NULL DEFAULT 'and',
+      conditions_json JSON NOT NULL,
+      is_active TINYINT NOT NULL DEFAULT 1,
+      sort_order INT NOT NULL DEFAULT 0
+    )
+  `)
 }

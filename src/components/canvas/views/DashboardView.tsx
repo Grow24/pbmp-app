@@ -1,9 +1,9 @@
 import { useWorkbench } from '../../../context/WorkbenchContext'
 
 export function DashboardView() {
-  const { blocks } = useWorkbench()
+  const { blocks, filterItems } = useWorkbench()
   const kpis = blocks('dashboard').filter((item) => item.blockType === 'kpi')
-  const work = blocks('dashboard').filter((item) => item.blockType === 'work_row')
+  const work = filterItems(blocks('dashboard').filter((item) => item.blockType === 'work_row'))
   const sprint = blocks('dashboard').find((item) => item.blockType === 'sprint')
   const stats = blocks('dashboard').filter((item) => item.blockType === 'sprint_stat')
 
