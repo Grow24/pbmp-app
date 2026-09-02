@@ -10,7 +10,7 @@ const settings = [
   ['user_initials', 'PS', 'header', 'User initials', 'text', 7],
   ['footer_org', 'Meridian Group', 'footer', 'Footer organisation', 'text', 8],
   ['footer_status', 'Draft', 'footer', 'Footer status', 'text', 9],
-  ['default_menu', 'business', 'general', 'Default open menu slug', 'text', 10],
+  ['default_menu', 'dashboard', 'general', 'Default open menu slug', 'text', 10],
   ['chat_welcome', 'I can walk the current AS-IS canvas with you — capabilities, maps, or the inquiry trail. What should we open first?', 'general', 'Chat welcome message', 'textarea', 11],
 ]
 
@@ -242,4 +242,10 @@ export async function seedIfEmpty() {
   await addContent(null, 'highlight', 'highlight', { title: 'Capability gap: pricing', subtitle: 'Nisha Rao', body: 'No single owner for price architecture. Add a RACI before the next steering review.', value: 'Yesterday', extra: { tone: 'action' }, sort: 3 })
 
   return true
+}
+
+export async function syncDefaultMenu() {
+  await pool.query(
+    "UPDATE settings SET setting_value = 'dashboard' WHERE setting_key = 'default_menu' AND setting_value = 'business'",
+  )
 }

@@ -85,7 +85,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const [selectedId, setSelectedId] = useState('')
   const [tabId, setTabId] = useState('')
   const [subtabId, setSubtabId] = useState('')
-  const [expandedIds, setExpandedIds] = useState<string[]>(['strategy'])
+  const [expandedIds, setExpandedIds] = useState<string[]>([])
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [rightOpen, setRightOpen] = useState(() =>
@@ -105,8 +105,15 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     reload()
       .then((next) => {
-        const defaultId = next.settings.default_menu || next.sections[0]?.items[0]?.id || ''
+        const defaultId =
+          next.settings.default_menu ||
+          next.sections[0]?.items.find((item) => item.id === 'dashboard')?.id ||
+          next.sections[0]?.items[0]?.id ||
+          ''
         setSelectedId((prev) => prev || defaultId)
+        const trail =
+          findAncestors(defaultId, next.sections.flatMap((section) => section.items)) ?? []
+        setExpandedIds(trail.slice(0, -1).map((node) => node.id))
         if (next.settings.chat_welcome) {
           setChat((prev) =>
             prev.length

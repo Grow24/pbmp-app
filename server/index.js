@@ -5,7 +5,7 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import { pool, waitForDb, ensureSchema, dbConfig } from './db.js'
-import { seedIfEmpty } from './seed.js'
+import { seedIfEmpty, syncDefaultMenu } from './seed.js'
 
 dotenv.config()
 
@@ -380,6 +380,7 @@ async function start() {
   await waitForDb()
   await ensureSchema()
   const seeded = await seedIfEmpty()
+  await syncDefaultMenu()
   app.listen(port, '0.0.0.0', () => {
     console.log(`PBMP API on http://0.0.0.0:${port}${seeded ? ' (seeded)' : ''}`)
   })
