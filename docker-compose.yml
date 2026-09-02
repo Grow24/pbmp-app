@@ -1,0 +1,18 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: pbmp-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: pbmp
+      MYSQL_DATABASE: pbmp_workbench
+      MYSQL_USER: pbmp
+      MYSQL_PASSWORD: pbmp
+    ports:
+      - "3310:3306"
+    volumes:
+      - pbmp_mysql_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+volumes:
+  pbmp_mysql_data:
