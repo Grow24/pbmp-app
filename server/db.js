@@ -74,6 +74,7 @@ export async function ensureSchema() {
       canvas_title VARCHAR(180) NULL,
       canvas_eyebrow VARCHAR(180) NULL,
       canvas_description TEXT NULL,
+      external_url VARCHAR(500) NULL,
       FOREIGN KEY (section_id) REFERENCES menu_sections(id) ON DELETE CASCADE,
       FOREIGN KEY (parent_id) REFERENCES menu_items(id) ON DELETE CASCADE
     )
@@ -132,4 +133,12 @@ export async function ensureSchema() {
       sort_order INT NOT NULL DEFAULT 0
     )
   `)
+
+  const [urlCol] = await pool.query(
+    `SELECT COUNT(*) AS count FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'menu_items' AND COLUMN_NAME = 'external_url'`,
+  )
+  if (!urlCol[0].count) {
+    await pool.query('ALTER TABLE menu_items ADD COLUMN external_url VARCHAR(500) NULL')
+  }
 }

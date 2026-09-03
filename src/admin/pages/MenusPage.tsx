@@ -15,6 +15,7 @@ const emptyItem = (sectionId = 0): Partial<DbItem> => ({
   canvas_title: '',
   canvas_eyebrow: '',
   canvas_description: '',
+  external_url: '',
 })
 
 export function MenusPage({ onMessage }: { onMessage: (text: string) => void }) {
@@ -212,6 +213,13 @@ export function MenusPage({ onMessage }: { onMessage: (text: string) => void }) 
                   </option>
                 ))}
               </Select>
+            </Field>
+            <Field label="External URL" hint="Agar URL diya to click par naya tab khulega, canvas nahi.">
+              <TextInput
+                value={form.external_url || ''}
+                onChange={(event) => setForm((prev) => ({ ...prev, external_url: event.target.value }))}
+                placeholder="https://"
+              />
             </Field>
             <Field label="Canvas title" hint="Click par beech wale canvas ka heading.">
               <TextInput value={form.canvas_title || ''} onChange={(event) => setForm((prev) => ({ ...prev, canvas_title: event.target.value }))} />

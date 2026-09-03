@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
 import { getIcon } from '../../icons'
 import { useWorkbench } from '../../context/WorkbenchContext'
 import type { MenuItem } from '../../types'
@@ -11,7 +11,8 @@ function matchesQuery(item: MenuItem, query: string): boolean {
 }
 
 function SidebarRow({ item, depth }: { item: MenuItem; depth: number }) {
-  const { selectedId, expandedIds, sidebarCollapsed, toggleExpanded, selectItem, search } = useWorkbench()
+  const { selectedId, expandedIds, sidebarCollapsed, toggleExpanded, selectItem, search, setMobileNavOpen } =
+    useWorkbench()
   const Icon = getIcon(item.icon)
   const hasChildren = Boolean(item.children?.length)
   const expanded = expandedIds.includes(item.id) || Boolean(search)
@@ -28,6 +29,11 @@ function SidebarRow({ item, depth }: { item: MenuItem; depth: number }) {
         return
       }
       toggleExpanded(item.id)
+      return
+    }
+    if (item.externalUrl) {
+      window.open(item.externalUrl, '_blank', 'noopener,noreferrer')
+      setMobileNavOpen(false)
       return
     }
     if (item.canvas) selectItem(item.id)
@@ -54,6 +60,7 @@ function SidebarRow({ item, depth }: { item: MenuItem; depth: number }) {
         {!sidebarCollapsed && (
           <>
             <span className="min-w-0 flex-1 truncate text-[13px]">{item.label}</span>
+            {item.externalUrl && <ExternalLink className="h-3 w-3 shrink-0 text-slate-300" />}
             {hasChildren &&
               (expanded ? (
                 <ChevronDown className="h-3.5 w-3.5 text-slate-400" />

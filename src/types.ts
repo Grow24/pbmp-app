@@ -43,6 +43,7 @@ export type MenuItem = {
   icon: string
   children?: MenuItem[]
   canvas?: CanvasConfig
+  externalUrl?: string
 }
 
 export type MenuSection = {
@@ -117,6 +118,7 @@ export type DbItem = {
   canvas_title: string | null
   canvas_eyebrow: string | null
   canvas_description: string | null
+  external_url: string | null
 }
 
 export type DbTab = {

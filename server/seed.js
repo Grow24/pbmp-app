@@ -57,8 +57,8 @@ export async function seedIfEmpty() {
   async function addItem(item) {
     const [result] = await pool.query(
       `INSERT INTO menu_items
-        (slug, section_id, parent_id, label, icon, sort_order, canvas_title, canvas_eyebrow, canvas_description)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
+        (slug, section_id, parent_id, label, icon, sort_order, canvas_title, canvas_eyebrow, canvas_description, external_url)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
       [
         item.slug,
         sectionIds[item.section],
@@ -69,6 +69,7 @@ export async function seedIfEmpty() {
         item.title || null,
         item.eyebrow || null,
         item.description || null,
+        item.url || null,
       ],
     )
     itemIds[item.slug] = result.insertId
@@ -90,8 +91,16 @@ export async function seedIfEmpty() {
 
   const items = [
     { slug: 'dashboard', section: 'workspace', label: 'Dashboard', icon: 'dashboard', sort: 1, title: 'Executive dashboard', eyebrow: 'Meridian Group', description: 'Live operating picture across strategy, delivery, and studio work.', tabs: [{ slug: 'overview', label: 'Overview', kind: 'dashboard', sort: 1 }] },
-    { slug: 'filter', section: 'workspace', label: 'Filter', icon: 'filter', sort: 2, title: 'Saved filters', eyebrow: 'Workspace', description: 'Pin views, owners, and time ranges for the workbench.', tabs: [{ slug: 'saved', label: 'Saved views', kind: 'filter', sort: 1 }] },
-    { slug: 'strategy', section: 'workspace', label: 'Strategy', icon: 'strategy', sort: 3 },
+    ...EXTERNAL_LINK_MENUS.map((item) => ({
+      slug: item.slug,
+      section: 'workspace',
+      label: item.label,
+      icon: item.icon,
+      sort: item.sort,
+      url: item.url,
+    })),
+    { slug: 'filter', section: 'workspace', label: 'Filter', icon: 'filter', sort: 12, title: 'Saved filters', eyebrow: 'Workspace', description: 'Pin views, owners, and time ranges for the workbench.', tabs: [{ slug: 'saved', label: 'Saved views', kind: 'filter', sort: 1 }] },
+    { slug: 'strategy', section: 'workspace', label: 'Strategy', icon: 'strategy', sort: 13 },
     { slug: 'business', section: 'workspace', parent: 'strategy', label: 'Business', icon: 'business', sort: 1, title: 'Business strategy', eyebrow: 'Strategy · Business', description: 'Assess the current operating model, read the market, and lock the next-cycle strategy.', tabs: strategyTabs },
     { slug: 'marketing', section: 'workspace', parent: 'strategy', label: 'Marketing', icon: 'marketing', sort: 2, title: 'Marketing strategy', eyebrow: 'Strategy · Marketing', description: 'Demand, brand, and growth motions for the next planning cycle.', tabs: strategyTabs },
     { slug: 'sales', section: 'workspace', parent: 'strategy', label: 'Sales', icon: 'sales', sort: 3, title: 'Sales strategy', eyebrow: 'Strategy · Sales', description: 'Pipeline design, coverage, and revenue system diagnostics.', tabs: strategyTabs },
@@ -320,4 +329,43 @@ export async function syncDefaultMenu() {
   await pool.query(
     "UPDATE settings SET setting_value = 'dashboard' WHERE setting_key = 'default_menu' AND setting_value = 'business'",
   )
+}
+
+const EXTERNAL_LINK_MENUS = [
+  { slug: 'hbmp-agentbot', label: 'HBMP AgentBot', icon: 'bot', sort: 2, url: 'https://www.grow24.ai/HBMP_AgentBot/' },
+  { slug: 'app-manager', label: 'app manager', icon: 'app', sort: 3, url: 'https://www.grow24.ai/app_manager/' },
+  { slug: 'hbmp-docs-platform', label: 'HBMP DOCS PLATFORM', icon: 'docs', sort: 4, url: 'https://www.grow24.ai/HBMP_DOCS_PLATFORM/' },
+  { slug: 'hbmp-form-manager', label: 'hbmp form manager', icon: 'form', sort: 5, url: 'https://www.grow24.ai/hbmp_form_manager/' },
+  { slug: 'hbmp-one', label: 'HBMP One', icon: 'layers', sort: 6, url: 'https://www.grow24.ai/HBMP_One/' },
+  { slug: 'image-processing', label: 'ImageProcessing', icon: 'image', sort: 7, url: 'https://www.grow24.ai/ImageProcessing/' },
+  { slug: 'openstreetmaps', label: 'OpenStreetMaps', icon: 'mappin', sort: 8, url: 'https://www.grow24.ai/OpenStreetMaps/' },
+  { slug: 'mini-builder', label: 'Mini Builder', icon: 'builder', sort: 9, url: 'https://www.grow24.ai/testing-responsiveness/' },
+  { slug: 'apify-n8n', label: 'apify n8n', icon: 'zap', sort: 10, url: 'https://apify-n8n.zeabur.app/setup' },
+  { slug: 'form-template', label: 'Form Template', icon: 'template', sort: 11, url: 'https://pbmpformtemplate.zeabur.app/' },
+]
+
+export async function seedAgentBotMenu() {
+  const [sections] = await pool.query("SELECT id FROM menu_sections WHERE slug = 'workspace' LIMIT 1")
+  if (!sections.length) return
+  const sectionId = sections[0].id
+
+  for (const item of EXTERNAL_LINK_MENUS) {
+    const [existing] = await pool.query('SELECT id FROM menu_items WHERE slug = ? LIMIT 1', [item.slug])
+    if (existing.length) {
+      await pool.query(
+        'UPDATE menu_items SET label = ?, icon = ?, sort_order = ?, external_url = ?, parent_id = NULL, section_id = ? WHERE slug = ?',
+        [item.label, item.icon, item.sort, item.url, sectionId, item.slug],
+      )
+    } else {
+      await pool.query(
+        `INSERT INTO menu_items
+          (slug, section_id, parent_id, label, icon, sort_order, canvas_title, canvas_eyebrow, canvas_description, external_url)
+         VALUES (?, ?, NULL, ?, ?, ?, NULL, NULL, NULL, ?)`,
+        [item.slug, sectionId, item.label, item.icon, item.sort, item.url],
+      )
+    }
+  }
+
+  await pool.query("UPDATE menu_items SET sort_order = 12 WHERE slug = 'filter'")
+  await pool.query("UPDATE menu_items SET sort_order = 13 WHERE slug = 'strategy'")
 }

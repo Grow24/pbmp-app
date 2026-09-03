@@ -5,7 +5,7 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import { pool, waitForDb, ensureSchema, dbConfig } from './db.js'
-import { seedIfEmpty, seedFiltersIfEmpty, syncDefaultMenu } from './seed.js'
+import { seedIfEmpty, seedFiltersIfEmpty, seedAgentBotMenu, syncDefaultMenu } from './seed.js'
 
 dotenv.config()
 
@@ -108,6 +108,7 @@ async function loadBootstrap() {
       dbId: item.id,
       label: item.label,
       icon: item.icon,
+      externalUrl: item.external_url || undefined,
       children: childItems.length ? childItems.map(toMenu) : undefined,
       canvas: item.canvas_title
         ? {
@@ -213,8 +214,8 @@ app.post('/api/items', async (req, res) => {
   const b = req.body
   const [result] = await pool.query(
     `INSERT INTO menu_items
-      (slug, section_id, parent_id, label, icon, sort_order, canvas_title, canvas_eyebrow, canvas_description)
-     VALUES (?,?,?,?,?,?,?,?,?)`,
+      (slug, section_id, parent_id, label, icon, sort_order, canvas_title, canvas_eyebrow, canvas_description, external_url)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`,
     [
       b.slug,
       b.section_id,
@@ -225,6 +226,7 @@ app.post('/api/items', async (req, res) => {
       b.canvas_title || null,
       b.canvas_eyebrow || null,
       b.canvas_description || null,
+      b.external_url || null,
     ],
   )
   const [rows] = await pool.query('SELECT * FROM menu_items WHERE id = ?', [result.insertId])
@@ -236,7 +238,7 @@ app.put('/api/items/:id', async (req, res) => {
   await pool.query(
     `UPDATE menu_items SET
       slug=?, section_id=?, parent_id=?, label=?, icon=?, sort_order=?,
-      canvas_title=?, canvas_eyebrow=?, canvas_description=?
+      canvas_title=?, canvas_eyebrow=?, canvas_description=?, external_url=?
      WHERE id=?`,
     [
       b.slug,
@@ -248,6 +250,7 @@ app.put('/api/items/:id', async (req, res) => {
       b.canvas_title || null,
       b.canvas_eyebrow || null,
       b.canvas_description || null,
+      b.external_url || null,
       req.params.id,
     ],
   )
@@ -479,6 +482,7 @@ async function start() {
   await ensureSchema()
   const seeded = await seedIfEmpty()
   await seedFiltersIfEmpty()
+  await seedAgentBotMenu()
   await syncDefaultMenu()
   app.listen(port, '0.0.0.0', () => {
     console.log(`PBMP API on http://0.0.0.0:${port}${seeded ? ' (seeded)' : ''}`)
