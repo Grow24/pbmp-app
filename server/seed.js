@@ -99,8 +99,8 @@ export async function seedIfEmpty() {
       sort: item.sort,
       url: item.url,
     })),
-    { slug: 'filter', section: 'workspace', label: 'Filter', icon: 'filter', sort: 12, title: 'Saved filters', eyebrow: 'Workspace', description: 'Pin views, owners, and time ranges for the workbench.', tabs: [{ slug: 'saved', label: 'Saved views', kind: 'filter', sort: 1 }] },
-    { slug: 'strategy', section: 'workspace', label: 'Strategy', icon: 'strategy', sort: 13 },
+    { slug: 'filter', section: 'workspace', label: 'Filter', icon: 'filter', sort: 17, title: 'Saved filters', eyebrow: 'Workspace', description: 'Pin views, owners, and time ranges for the workbench.', tabs: [{ slug: 'saved', label: 'Saved views', kind: 'filter', sort: 1 }] },
+    { slug: 'strategy', section: 'workspace', label: 'Strategy', icon: 'strategy', sort: 18 },
     { slug: 'business', section: 'workspace', parent: 'strategy', label: 'Business', icon: 'business', sort: 1, title: 'Business strategy', eyebrow: 'Strategy · Business', description: 'Assess the current operating model, read the market, and lock the next-cycle strategy.', tabs: strategyTabs },
     { slug: 'marketing', section: 'workspace', parent: 'strategy', label: 'Marketing', icon: 'marketing', sort: 2, title: 'Marketing strategy', eyebrow: 'Strategy · Marketing', description: 'Demand, brand, and growth motions for the next planning cycle.', tabs: strategyTabs },
     { slug: 'sales', section: 'workspace', parent: 'strategy', label: 'Sales', icon: 'sales', sort: 3, title: 'Sales strategy', eyebrow: 'Strategy · Sales', description: 'Pipeline design, coverage, and revenue system diagnostics.', tabs: strategyTabs },
@@ -342,6 +342,11 @@ const EXTERNAL_LINK_MENUS = [
   { slug: 'mini-builder', label: 'Mini Builder', icon: 'builder', sort: 9, url: 'https://www.grow24.ai/testing-responsiveness/' },
   { slug: 'apify-n8n', label: 'apify n8n', icon: 'zap', sort: 10, url: 'https://apify-n8n.zeabur.app/setup' },
   { slug: 'form-template', label: 'Form Template', icon: 'template', sort: 11, url: 'https://pbmpformtemplate.zeabur.app/' },
+  { slug: 'gcp-services', label: 'GCP Services', icon: 'cloud', sort: 12, url: 'https://pbmpgcpservices.zeabur.app/' },
+  { slug: 'gem-management', label: 'GEM Management', icon: 'gem', sort: 13, url: 'https://gemmanagement.zeabur.app/' },
+  { slug: 'product-discovery', label: 'Product Discovery', icon: 'blocks', sort: 14, url: 'https://blocklycursor.zeabur.app/' },
+  { slug: 'survey-manager', label: 'Survey Manager', icon: 'survey', sort: 15, url: 'https://hbmpform.zeabur.app/' },
+  { slug: 'soccer-ai', label: 'Soccer AI', icon: 'trophy', sort: 16, url: 'https://soccerai.zeabur.app/' },
 ]
 
 export async function seedAgentBotMenu() {
@@ -366,6 +371,7 @@ export async function seedAgentBotMenu() {
     }
   }
 
-  await pool.query("UPDATE menu_items SET sort_order = 12 WHERE slug = 'filter'")
-  await pool.query("UPDATE menu_items SET sort_order = 13 WHERE slug = 'strategy'")
+  const nextSort = Math.max(...EXTERNAL_LINK_MENUS.map((item) => item.sort))
+  await pool.query("UPDATE menu_items SET sort_order = ? WHERE slug = 'filter'", [nextSort + 1])
+  await pool.query("UPDATE menu_items SET sort_order = ? WHERE slug = 'strategy'", [nextSort + 2])
 }
