@@ -39,6 +39,41 @@ export function MenusPage({ onMessage }: { onMessage: (text: string) => void }) 
   const childrenOf = (parentId: number | null, sectionId: number) =>
     items.filter((item) => item.section_id === sectionId && item.parent_id === parentId)
 
+  const itemPath = (item: DbItem) => {
+    const parts = [item.label]
+    let current: DbItem | undefined = item
+    while (current?.parent_id) {
+      const parent = items.find((row) => row.id === current?.parent_id)
+      if (!parent) break
+      parts.unshift(parent.label)
+      current = parent
+    }
+    return parts.join(' / ')
+  }
+
+  const renderTree = (parentId: number | null, sectionId: number, depth = 0) =>
+    childrenOf(parentId, sectionId).map((item) => (
+      <div key={item.id}>
+        <MenuRow
+          item={item}
+          nested={depth > 0}
+          onEdit={() => {
+            setEditing(item.id)
+            setForm(item)
+          }}
+          onDelete={async () => {
+            if (!confirm(`Delete “${item.label}”?`)) return
+            await api.deleteItem(item.id)
+            await load()
+            onMessage('Menu item deleted.')
+          }}
+        />
+        {childrenOf(item.id, sectionId).length > 0 && (
+          <div className="ml-6 border-l border-slate-200">{renderTree(item.id, sectionId, depth + 1)}</div>
+        )}
+      </div>
+    ))
+
   return (
     <div className="space-y-4">
       <PageHead
@@ -122,42 +157,7 @@ export function MenusPage({ onMessage }: { onMessage: (text: string) => void }) 
             {sections.map((section) => (
               <div key={section.id}>
                 <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{section.label}</div>
-                {childrenOf(null, section.id).map((item) => (
-                  <div key={item.id}>
-                    <MenuRow
-                      item={item}
-                      onEdit={() => {
-                        setEditing(item.id)
-                        setForm(item)
-                      }}
-                      onDelete={async () => {
-                        if (!confirm(`Delete “${item.label}”?`)) return
-                        await api.deleteItem(item.id)
-                        await load()
-                        onMessage('Menu item deleted.')
-                      }}
-                    />
-                    <div className="ml-6 border-l border-slate-200">
-                      {childrenOf(item.id, section.id).map((child) => (
-                        <MenuRow
-                          key={child.id}
-                          item={child}
-                          nested
-                          onEdit={() => {
-                            setEditing(child.id)
-                            setForm(child)
-                          }}
-                          onDelete={async () => {
-                            if (!confirm(`Delete “${child.label}”?`)) return
-                            await api.deleteItem(child.id)
-                            await load()
-                            onMessage('Menu item deleted.')
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                {renderTree(null, section.id)}
               </div>
             ))}
           </div>
@@ -190,7 +190,7 @@ export function MenusPage({ onMessage }: { onMessage: (text: string) => void }) 
                 ))}
               </Select>
             </Field>
-            <Field label="Parent menu" hint="Sub-level ke liye parent select karo. Top-level ke liye empty chhodo.">
+            <Field label="Parent menu" hint="Sub-level ke liye parent select karo. Five levels tak sidebar mein nested khulenge. Top-level ke liye empty chhodo.">
               <Select
                 value={form.parent_id || ''}
                 onChange={(event) => setForm((prev) => ({ ...prev, parent_id: event.target.value ? Number(event.target.value) : null }))}
@@ -200,7 +200,7 @@ export function MenusPage({ onMessage }: { onMessage: (text: string) => void }) 
                   .filter((item) => item.id !== editing)
                   .map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.label}
+                      {itemPath(item)}
                     </option>
                   ))}
               </Select>

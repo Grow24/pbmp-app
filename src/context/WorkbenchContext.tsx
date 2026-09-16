@@ -171,7 +171,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       setTabId(firstTab?.id ?? '')
       setSubtabId(firstTab?.subtabs?.[0]?.id ?? '')
       const trail = findAncestors(id, menuSections.flatMap((section) => section.items)) ?? []
-      setExpandedIds((prev) => Array.from(new Set([...prev, ...trail.map((node) => node.id)])))
+      setExpandedIds((prev) => Array.from(new Set([...prev, ...trail.slice(0, -1).map((node) => node.id)])))
       setMobileNavOpen(false)
     },
     [menuSections],

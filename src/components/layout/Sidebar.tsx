@@ -7,7 +7,20 @@ function matchesQuery(item: MenuItem, query: string): boolean {
   if (!query) return true
   const q = query.toLowerCase()
   if (item.label.toLowerCase().includes(q)) return true
-  return Boolean(item.children?.some((child) => matchesQuery(child, q)))
+  return Boolean(item.children?.some((child) => matchesQuery(child, query)))
+}
+
+function containsId(item: MenuItem, id: string): boolean {
+  return Boolean(item.children?.some((child) => child.id === id || containsId(child, id)))
+}
+
+function findFirstCanvas(item: MenuItem): MenuItem | undefined {
+  if (item.canvas) return item
+  for (const child of item.children ?? []) {
+    const found = findFirstCanvas(child)
+    if (found) return found
+  }
+  return undefined
 }
 
 function SidebarRow({ item, depth }: { item: MenuItem; depth: number }) {
@@ -17,25 +30,20 @@ function SidebarRow({ item, depth }: { item: MenuItem; depth: number }) {
   const hasChildren = Boolean(item.children?.length)
   const expanded = expandedIds.includes(item.id) || Boolean(search)
   const active = selectedId === item.id
-  const childActive = Boolean(
-    item.children?.some((child) => child.id === selectedId || child.children?.some((n) => n.id === selectedId)),
-  )
+  const childActive = containsId(item, selectedId)
 
   const onClick = () => {
-    if (hasChildren) {
-      if (sidebarCollapsed) {
-        const firstLeaf = item.children?.find((child) => child.canvas) ?? item.children?.[0]
-        if (firstLeaf?.canvas) selectItem(firstLeaf.id)
-        return
-      }
-      toggleExpanded(item.id)
-      return
-    }
     if (item.externalUrl) {
       window.open(item.externalUrl, '_blank', 'noopener,noreferrer')
       setMobileNavOpen(false)
       return
     }
+    if (hasChildren && sidebarCollapsed) {
+      const first = findFirstCanvas(item)
+      if (first) selectItem(first.id)
+      return
+    }
+    if (hasChildren) toggleExpanded(item.id)
     if (item.canvas) selectItem(item.id)
   }
 
@@ -54,7 +62,7 @@ function SidebarRow({ item, depth }: { item: MenuItem; depth: number }) {
               ? 'text-slate-800'
               : 'text-slate-600 hover:bg-slate-50'
         }`}
-        style={sidebarCollapsed ? undefined : { paddingLeft: 12 + depth * 16 }}
+        style={sidebarCollapsed ? undefined : { paddingLeft: 12 + depth * 12 }}
       >
         <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-brand-500' : 'text-slate-400'}`} />
         {!sidebarCollapsed && (
