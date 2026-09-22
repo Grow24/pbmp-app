@@ -55,7 +55,7 @@ Do not rename the MySQL service variables. First boot of the Node app creates ta
 
 1. **Add Service** → **Git** → GitHub → `Grow24/pbmp-app` → branch `main`.
 2. Root directory: `/` (repo root).
-3. Dedicated Zeabur (Hetzner) does not auto-detect Node. The repo includes a `Dockerfile`. In **Settings**, click **Load from GitHub** if the Dockerfile editor is empty or incomplete. Leave **Startup Command** empty — `CMD` in the Dockerfile starts the server.
+3. Dedicated Zeabur (Hetzner) often keeps its **own Dockerfile** in Settings. After a Dockerfile change, open the Node service → **Settings** → Dockerfile → **Load from GitHub**, save, then Redeploy. Leave **Startup Command** empty.
 4. Do **not** set `ZBPACK_OUTPUT_DIR` or `output_dir=dist`. That would host only HTML and `/api` would stop working.
 
 ### 4. Variables on the **Node** service
