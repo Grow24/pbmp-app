@@ -12,7 +12,28 @@ const settings = [
   ['footer_status', 'Draft', 'footer', 'Footer status', 'text', 9],
   ['default_menu', 'dashboard', 'general', 'Default open menu slug', 'text', 10],
   ['chat_welcome', 'I can walk the current AS-IS canvas with you — capabilities, maps, or the inquiry trail. What should we open first?', 'general', 'Chat welcome message', 'textarea', 11],
+  ['ai_auto_scroll', '1', 'ai', 'Auto-scroll chat', 'text', 20],
+  ['ai_stt', '1', 'ai', 'Browser speech-to-text', 'text', 21],
+  ['ai_tts', '0', 'ai', 'Browser text-to-speech', 'text', 22],
+  ['ai_tts_autoplay', '0', 'ai', 'Auto-play spoken answers', 'text', 23],
+  ['ai_speech_lang', 'en-IN', 'ai', 'Speech language', 'text', 24],
+  ['ai_auto_send_ms', '900', 'ai', 'Auto-send after speech (ms)', 'text', 25],
+  ['ai_image_resize', '1', 'ai', 'Resize images before upload', 'text', 26],
+  ['ai_long_paste', '1', 'ai', 'Convert long paste to attachment', 'text', 27],
+  ['ai_clock_24h', '1', 'ai', '24-hour clock', 'text', 28],
+  ['ai_week_start', '1', 'ai', 'Week starts Monday (1) or Sunday (0)', 'text', 29],
 ]
+
+export const aiSettings = settings.filter((row) => row[2] === 'ai')
+
+export async function seedAiSettingsIfMissing() {
+  for (const row of aiSettings) {
+    await pool.query(
+      'INSERT IGNORE INTO settings (setting_key, setting_value, group_name, label, input_type, sort_order) VALUES (?,?,?,?,?,?)',
+      row,
+    )
+  }
+}
 
 const strategyTabs = [
   { slug: 'assess', label: 'Assess AS IS', kind: 'assess', sort: 1, subtabs: [
@@ -376,7 +397,7 @@ export async function syncDefaultMenu() {
 
 const EXTERNAL_LINK_MENUS = [
   { slug: 'hbmp-agentbot', label: 'HBMP AgentBot', icon: 'bot', sort: 3, url: 'https://www.grow24.ai/HBMP_AgentBot/' },
-  { slug: 'app-manager', label: 'app manager', icon: 'app', sort: 4, url: 'https://www.grow24.ai/app_manager/' },
+  { slug: 'app-manager', label: 'app manager', icon: 'app', sort: 4, url: '/app-manager' },
   { slug: 'hbmp-docs-platform', label: 'HBMP DOCS PLATFORM', icon: 'docs', sort: 5, url: 'https://www.grow24.ai/HBMP_DOCS_PLATFORM/' },
   { slug: 'hbmp-form-manager', label: 'hbmp form manager', icon: 'form', sort: 6, url: 'https://www.grow24.ai/hbmp_form_manager/' },
   { slug: 'hbmp-one', label: 'HBMP One', icon: 'layers', sort: 7, url: 'https://www.grow24.ai/HBMP_One/' },

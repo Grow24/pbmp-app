@@ -69,7 +69,12 @@ DB_USER=${MYSQL_USERNAME}
 DB_PASSWORD=${MYSQL_PASSWORD}
 DB_NAME=${MYSQL_DATABASE}
 NODE_ENV=production
+AI_BASE_URL=https://api.openai.com/v1
+AI_API_KEY=
+AI_MODEL=gpt-4o-mini
 ```
+
+Human AI chat works without `AI_API_KEY` (canvas-aware local assistant). To use OpenAI, OpenRouter, or an OpenAI-compatible LibreChat endpoint, set `AI_API_KEY` and point `AI_BASE_URL` at that `/v1` URL. If LibreChat is another service in the same Zeabur project, you can use its private host instead of a public URL.
 
 Rules:
 
@@ -91,6 +96,7 @@ Rules:
 1. Open `/admin` → change a menu label or KPI → Save.
 2. Open `/` and confirm the workbench shows the new value.
 3. If the UI is empty or shows a MySQL error, check Node **Runtime Logs** for `MySQL user@host:port/database` and connection errors. Confirm both services are in the **same project**.
+4. Open a canvas, use the right-side Conversation panel, and send a message. Without `AI_API_KEY` you should still get a streamed canvas-aware reply. After the first chat, MySQL will have `ai_projects` / `ai_conversations` tables.
 
 ## Stack
 

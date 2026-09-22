@@ -5,13 +5,15 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import { pool, waitForDb, ensureSchema, dbConfig } from './db.js'
-import { seedIfEmpty, seedFiltersIfEmpty, seedAgentBotMenu, seedNestedPlanningMenu, syncDefaultMenu } from './seed.js'
+import { seedIfEmpty, seedFiltersIfEmpty, seedAgentBotMenu, seedNestedPlanningMenu, seedAiSettingsIfMissing, syncDefaultMenu } from './seed.js'
+import { registerAiRoutes } from './ai.js'
 
 dotenv.config()
 
 const app = express()
+app.set('trust proxy', 1)
 app.use(cors())
-app.use(express.json({ limit: '2mb' }))
+app.use(express.json({ limit: '12mb' }))
 
 const distDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist')
 
@@ -460,6 +462,8 @@ app.delete('/api/filters/:id', async (req, res) => {
   res.json({ ok: true })
 })
 
+registerAiRoutes(app)
+
 if (fs.existsSync(path.join(distDir, 'index.html'))) {
   app.use(express.static(distDir))
   app.use((req, res, next) => {
@@ -484,6 +488,7 @@ async function start() {
   await seedFiltersIfEmpty()
   await seedAgentBotMenu()
   await seedNestedPlanningMenu()
+  await seedAiSettingsIfMissing()
   await syncDefaultMenu()
   app.listen(port, '0.0.0.0', () => {
     console.log(`PBMP API on http://0.0.0.0:${port}${seeded ? ' (seeded)' : ''}`)

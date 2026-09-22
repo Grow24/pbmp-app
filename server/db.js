@@ -141,4 +141,64 @@ export async function ensureSchema() {
   if (!urlCol[0].count) {
     await pool.query('ALTER TABLE menu_items ADD COLUMN external_url VARCHAR(500) NULL')
   }
+
+  const [bodyCol] = await pool.query(
+    `SELECT DATA_TYPE AS type FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'content_items' AND COLUMN_NAME = 'body'`,
+  )
+  if (bodyCol[0] && String(bodyCol[0].type).toLowerCase() === 'text') {
+    await pool.query('ALTER TABLE content_items MODIFY body MEDIUMTEXT')
+  }
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_projects (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      slug VARCHAR(80) NOT NULL UNIQUE,
+      name VARCHAR(180) NOT NULL,
+      kind VARCHAR(32) NOT NULL DEFAULT 'canvas',
+      menu_item_id INT NULL,
+      description TEXT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE SET NULL
+    )
+  `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_conversations (
+      id CHAR(36) PRIMARY KEY,
+      project_id INT NOT NULL,
+      canvas_slug VARCHAR(64) NOT NULL DEFAULT '',
+      title VARCHAR(255) NOT NULL DEFAULT 'New conversation',
+      archived TINYINT NOT NULL DEFAULT 0,
+      pinned TINYINT NOT NULL DEFAULT 0,
+      temporary TINYINT NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (project_id) REFERENCES ai_projects(id) ON DELETE CASCADE
+    )
+  `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_messages (
+      id CHAR(36) PRIMARY KEY,
+      conversation_id CHAR(36) NOT NULL,
+      role VARCHAR(16) NOT NULL,
+      text MEDIUMTEXT NOT NULL,
+      image_name VARCHAR(255) NULL,
+      image_data MEDIUMTEXT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE
+    )
+  `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_artifacts (
+      id CHAR(36) PRIMARY KEY,
+      conversation_id CHAR(36) NOT NULL,
+      message_id CHAR(36) NOT NULL,
+      kind VARCHAR(32) NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      body MEDIUMTEXT NOT NULL,
+      saved_content_id INT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE
+    )
+  `)
 }

@@ -1,9 +1,11 @@
 import { AdminApp } from './admin/AdminApp'
+import { AppManager } from './appManager/App'
 import { Canvas } from './components/canvas/Canvas'
 import { Footer } from './components/layout/Footer'
 import { Header } from './components/layout/Header'
 import { RightPanel } from './components/layout/RightPanel'
 import { Sidebar } from './components/layout/Sidebar'
+import { AiProvider } from './context/AiContext'
 import { WorkbenchProvider, useWorkbench } from './context/WorkbenchContext'
 
 function Shell() {
@@ -34,7 +36,7 @@ function Shell() {
         <Sidebar />
         <main className="flex min-w-0 flex-1">
           <Canvas />
-          <div className={`${rightOpen ? 'fixed inset-y-0 right-0 z-30 w-[min(100%,340px)] shadow-lg xl:static xl:z-0 xl:shadow-none' : 'hidden xl:block'}`}>
+          <div className={`${rightOpen ? 'fixed inset-y-0 right-0 z-30 w-[min(100%,420px)] shadow-lg xl:static xl:z-0 xl:shadow-none' : 'hidden xl:block'}`}>
             <RightPanel />
           </div>
         </main>
@@ -53,13 +55,19 @@ function Shell() {
 }
 
 export default function App() {
+  if (window.location.pathname.startsWith('/app-manager')) {
+    return <AppManager />
+  }
+
   if (window.location.pathname.startsWith('/admin')) {
     return <AdminApp />
   }
 
   return (
     <WorkbenchProvider>
-      <Shell />
+      <AiProvider>
+        <Shell />
+      </AiProvider>
     </WorkbenchProvider>
   )
 }

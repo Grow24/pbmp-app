@@ -4,6 +4,7 @@ export function DocView() {
   const { canvas, blocks, filterItems } = useWorkbench()
   const meta = blocks('doc').find((item) => item.blockType === 'doc_meta')
   const sections = filterItems(blocks('doc').filter((item) => item.blockType === 'doc_section'))
+  const savedAi = filterItems(blocks('doc').filter((item) => item.blockType === 'ai_artifact'))
 
   return (
     <div className="mx-auto max-w-3xl ui-card p-6">
@@ -27,6 +28,13 @@ export function DocView() {
             </section>
           )
         })}
+        {savedAi.map((section) => (
+          <section key={section.id} className="rounded border border-brand-100 bg-brand-50/40 p-3">
+            <p className="text-[10px] uppercase tracking-wide text-brand-600">Saved from conversation</p>
+            <h3 className="text-base font-semibold text-slate-900">{section.title}</h3>
+            {section.body && <pre className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">{section.body}</pre>}
+          </section>
+        ))}
       </div>
     </div>
   )

@@ -17,7 +17,6 @@ import type {
   AppSettings,
   BootstrapData,
   CanvasTab,
-  ChatMessage,
   ContentBlock,
   HighlightItem,
   MenuItem,
@@ -26,7 +25,7 @@ import type {
   ViewKind,
 } from '../types'
 
-type RightTab = 'chat' | 'highlight'
+type RightTab = 'chat' | 'projects' | 'artifacts' | 'highlight'
 
 type WorkbenchContextValue = {
   loading: boolean
@@ -46,7 +45,6 @@ type WorkbenchContextValue = {
   rightOpen: boolean
   rightTab: RightTab
   search: string
-  chat: ChatMessage[]
   highlights: HighlightItem[]
   blocks: (kind?: string) => ContentBlock[]
   reload: () => Promise<BootstrapData>
@@ -59,7 +57,6 @@ type WorkbenchContextValue = {
   setRightOpen: (value: boolean) => void
   setRightTab: (value: RightTab) => void
   setSearch: (value: string) => void
-  sendChat: (text: string) => void
   savedFilters: SavedFilter[]
   activeFilterIds: number[]
   toggleFilter: (id: number) => void
@@ -97,10 +94,9 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const [expandedIds, setExpandedIds] = useState<string[]>([])
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const [rightOpen, setRightOpen] = useState(false)
+  const [rightOpen, setRightOpen] = useState(() => window.innerWidth >= 1280)
   const [rightTab, setRightTab] = useState<RightTab>('chat')
   const [search, setSearch] = useState('')
-  const [chat, setChat] = useState<ChatMessage[]>([])
   const [activeFilterIds, setActiveFilterIds] = useState<number[]>(() => {
     try {
       const raw = window.sessionStorage.getItem('pbmp-active-filters')
@@ -129,13 +125,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
         const trail =
           findAncestors(defaultId, next.sections.flatMap((section) => section.items)) ?? []
         setExpandedIds(trail.slice(0, -1).map((node) => node.id))
-        if (next.settings.chat_welcome) {
-          setChat((prev) =>
-            prev.length
-              ? prev
-              : [{ id: 'welcome', role: 'assistant', text: next.settings.chat_welcome }],
-          )
-        }
       })
       .catch((err: Error) => setError(err.message || 'Could not load configuration'))
       .finally(() => setLoading(false))
@@ -189,24 +178,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const toggleExpanded = useCallback((id: string) => {
     setExpandedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))
   }, [])
-
-  const sendChat = useCallback(
-    (text: string) => {
-      const trimmed = text.trim()
-      if (!trimmed) return
-      const title = canvas?.title ?? 'this workspace'
-      setChat((prev) => [
-        ...prev,
-        { id: crypto.randomUUID(), role: 'user', text: trimmed },
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          text: `Noted on ${title}. I will keep this against the ${activeTab?.label ?? 'current'} view so the team can pick it up in highlights.`,
-        },
-      ])
-    },
-    [activeTab?.label, canvas?.title],
-  )
 
   const blocks = useCallback(
     (kind?: string) => {
@@ -284,7 +255,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       rightOpen,
       rightTab,
       search,
-      chat,
       highlights,
       blocks,
       reload,
@@ -297,7 +267,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       setRightOpen,
       setRightTab,
       setSearch,
-      sendChat,
       savedFilters,
       activeFilterIds,
       toggleFilter,
@@ -309,7 +278,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       ancestors,
       blocks,
       canvas,
-      chat,
       error,
       expandedIds,
       highlights,
@@ -323,7 +291,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       selectItem,
       selectedId,
       selectedItem,
-      sendChat,
       setTab,
       settings,
       sidebarCollapsed,

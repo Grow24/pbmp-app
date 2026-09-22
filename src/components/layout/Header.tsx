@@ -1,8 +1,23 @@
 import { Bell, CalendarDays, Menu, Search, SlidersHorizontal } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { prefsFromSettings } from '../../ai/prefs'
 import { useWorkbench } from '../../context/WorkbenchContext'
 
 export function Header() {
   const { search, setSearch, setMobileNavOpen, settings } = useWorkbench()
+  const prefs = prefsFromSettings(settings)
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  const clock = new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: !prefs.clock24h,
+  }).format(now)
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-3">
@@ -46,7 +61,7 @@ export function Header() {
       <div className="ml-auto flex items-center gap-1">
         <div className="mr-1 hidden items-center gap-1.5 px-2 text-xs text-slate-500 lg:flex">
           <CalendarDays className="h-3.5 w-3.5" />
-          {settings.header_date || '2 Sep 2026'}
+          {settings.header_date || '2 Sep 2026'} · {clock}
         </div>
         <a
           href="/admin"

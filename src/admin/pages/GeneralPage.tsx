@@ -29,6 +29,7 @@ export function GeneralPage({ onMessage }: { onMessage: (text: string) => void }
     header: 'Header / brand',
     footer: 'Footer',
     general: 'Workbench defaults',
+    ai: 'Conversation / speech',
   }
 
   return (

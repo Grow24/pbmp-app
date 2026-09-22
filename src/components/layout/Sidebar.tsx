@@ -34,6 +34,10 @@ function SidebarRow({ item, depth }: { item: MenuItem; depth: number }) {
 
   const onClick = () => {
     if (item.externalUrl) {
+      if (item.externalUrl.startsWith('/')) {
+        window.location.assign(item.externalUrl)
+        return
+      }
       window.open(item.externalUrl, '_blank', 'noopener,noreferrer')
       setMobileNavOpen(false)
       return
@@ -68,7 +72,9 @@ function SidebarRow({ item, depth }: { item: MenuItem; depth: number }) {
         {!sidebarCollapsed && (
           <>
             <span className="min-w-0 flex-1 truncate text-[13px]">{item.label}</span>
-            {item.externalUrl && <ExternalLink className="h-3 w-3 shrink-0 text-slate-300" />}
+            {item.externalUrl && !item.externalUrl.startsWith('/') && (
+              <ExternalLink className="h-3 w-3 shrink-0 text-slate-300" />
+            )}
             {hasChildren &&
               (expanded ? (
                 <ChevronDown className="h-3.5 w-3.5 text-slate-400" />

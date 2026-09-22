@@ -53,12 +53,6 @@ export type MenuSection = {
   items: MenuItem[]
 }
 
-export type ChatMessage = {
-  id: string
-  role: 'assistant' | 'user'
-  text: string
-}
-
 export type HighlightItem = {
   id: string
   title: string

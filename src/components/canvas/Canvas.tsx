@@ -1,11 +1,25 @@
-import { ChevronRight, MessageSquare } from 'lucide-react'
+import { ChevronRight, MessageSquare, Quote, X } from 'lucide-react'
+import { useAi } from '../../context/AiContext'
 import { useWorkbench } from '../../context/WorkbenchContext'
+import { ArtifactPreview } from '../ai/ArtifactPreview'
 import { PageFilters } from '../filter/PageFilters'
 import { CanvasBody } from './CanvasBody'
 
 export function Canvas() {
-  const { canvas, ancestors, activeTab, activeSubtab, setTab, setSubtab, rightOpen, setRightOpen, viewKind } =
-    useWorkbench()
+  const {
+    canvas,
+    ancestors,
+    activeTab,
+    activeSubtab,
+    setTab,
+    setSubtab,
+    rightOpen,
+    setRightOpen,
+    setRightTab,
+    viewKind,
+    blocks,
+  } = useWorkbench()
+  const { setQuote, activeArtifact, fullscreenArtifact, setFullscreenArtifact, artifacts } = useAi()
 
   if (!canvas) {
     return (
@@ -16,6 +30,8 @@ export function Canvas() {
   }
 
   const isDiagram = viewKind === 'maps' || viewKind === 'tool'
+  const saved = [...blocks('doc'), ...blocks()].filter((item) => item.blockType === 'ai_artifact')
+  const uniqueSaved = saved.filter((item, index) => saved.findIndex((row) => row.id === item.id) === index)
 
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-white">
@@ -34,12 +50,26 @@ export function Canvas() {
             <h1 className="text-lg font-semibold text-slate-900">{canvas.title}</h1>
             <p className="mt-0.5 max-w-2xl text-[13px] text-slate-500">{canvas.description}</p>
           </div>
-          {!rightOpen && (
-            <button type="button" className="ui-btn xl:hidden" onClick={() => setRightOpen(true)}>
-              <MessageSquare className="h-3.5 w-3.5" />
-              Panel
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              className="ui-btn"
+              onClick={() => {
+                setQuote([canvas.title, canvas.description, activeTab?.label].filter(Boolean).join(' — '))
+                setRightTab('chat')
+                setRightOpen(true)
+              }}
+            >
+              <Quote className="h-3.5 w-3.5" />
+              Quote canvas
             </button>
-          )}
+            {!rightOpen && (
+              <button type="button" className="ui-btn xl:hidden" onClick={() => setRightOpen(true)}>
+                <MessageSquare className="h-3.5 w-3.5" />
+                Panel
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="mt-3 flex gap-0 overflow-x-auto">
@@ -88,7 +118,38 @@ export function Canvas() {
       <div className={`min-h-0 flex-1 overflow-auto p-4 sm:p-5 ${isDiagram ? 'canvas-grid' : 'bg-[#f5f7fa]'}`}>
         {viewKind !== 'filter' && <PageFilters page={viewKind} />}
         <CanvasBody />
+        {(uniqueSaved.length > 0 || artifacts.length > 0) && (
+          <div className="mt-4 ui-card p-3">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Saved AI artifacts on this workspace</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {uniqueSaved.map((item) => (
+                <span key={item.id} className="rounded border border-slate-200 bg-white px-2 py-1 text-[12px] text-slate-700">
+                  {item.title}
+                </span>
+              ))}
+              {!uniqueSaved.length && <span className="text-[12px] text-slate-400">Nothing saved yet — generate a report or diagram, then Save to canvas.</span>}
+            </div>
+          </div>
+        )}
       </div>
+
+      {fullscreenArtifact && activeArtifact && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-white">
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+            <div>
+              <p className="text-[11px] uppercase text-slate-400">Artifact</p>
+              <h2 className="text-sm font-semibold text-slate-900">{activeArtifact.title}</h2>
+            </div>
+            <button type="button" className="ui-btn" onClick={() => setFullscreenArtifact(false)}>
+              <X className="h-4 w-4" />
+              Close
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto p-6">
+            <ArtifactPreview artifact={activeArtifact} />
+          </div>
+        </div>
+      )}
     </section>
   )
 }
