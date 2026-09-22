@@ -1,6 +1,24 @@
 import { randomUUID } from 'node:crypto'
 import { pool } from './db.js'
 
+const PBMP_AGENTS = [
+  { slug: 'general', name: 'General assistant', role: 'Default copilot for the open canvas' },
+  { slug: 'executive-analyst', name: 'Executive Analyst', role: 'Board summaries, KPIs, and decisions' },
+  { slug: 'business-analyst', name: 'Business Analyst', role: 'AS-IS, process, and requirements' },
+  { slug: 'finance-analyst', name: 'Finance Analyst', role: 'Pricing, cost, and cycle time' },
+  { slug: 'project-manager', name: 'Project Manager', role: 'Owners, risks, and next steps' },
+]
+
+const PBMP_TEAM = [
+  { id: 'priya', name: 'Priya Shah', role: 'Strategy lead' },
+  { id: 'arjun', name: 'Arjun Mehta', role: 'Growth' },
+  { id: 'nisha', name: 'Nisha Rao', role: 'Studio' },
+]
+
+function agentBySlug(slug) {
+  return PBMP_AGENTS.find((item) => item.slug === slug) || PBMP_AGENTS[0]
+}
+
 function envFirst(...keys) {
   for (const key of keys) {
     const value = process.env[key]
@@ -40,6 +58,9 @@ function mapConversation(row) {
     id: row.id,
     projectId: row.project_id,
     canvasSlug: row.canvas_slug,
+    tabSlug: row.tab_slug || '',
+    subtabSlug: row.subtab_slug || '',
+    agentSlug: row.agent_slug || 'general',
     title: row.title,
     archived: Boolean(row.archived),
     pinned: Boolean(row.pinned),
@@ -196,12 +217,20 @@ async function listArtifacts(conversationId) {
   return rows.map(mapArtifact)
 }
 
-async function createConversation({ projectId, canvasSlug, title, temporary = false }) {
+async function createConversation({
+  projectId,
+  canvasSlug,
+  tabSlug = '',
+  subtabSlug = '',
+  agentSlug = 'general',
+  title,
+  temporary = false,
+}) {
   const id = randomUUID()
   await pool.query(
-    `INSERT INTO ai_conversations (id, project_id, canvas_slug, title, temporary)
-     VALUES (?,?,?,?,?)`,
-    [id, projectId, canvasSlug || '', title || 'New conversation', temporary ? 1 : 0],
+    `INSERT INTO ai_conversations (id, project_id, canvas_slug, tab_slug, subtab_slug, agent_slug, title, temporary)
+     VALUES (?,?,?,?,?,?,?,?)`,
+    [id, projectId, canvasSlug || '', tabSlug || '', subtabSlug || '', agentSlug || 'general', title || 'New conversation', temporary ? 1 : 0],
   )
   const [rows] = await pool.query('SELECT * FROM ai_conversations WHERE id = ?', [id])
   return mapConversation(rows[0])
@@ -335,6 +364,9 @@ async function streamOpenAi({ messages, signal }) {
 function buildModelMessages({ history, context, message, imageData }) {
   const system = [
     'You are the PBMP workbench assistant. You sit beside the user\'s current canvas.',
+    agentBySlug(context.agentSlug).name !== 'General assistant'
+      ? `You are acting as ${agentBySlug(context.agentSlug).name}: ${agentBySlug(context.agentSlug).role}.`
+      : '',
     'Ground every answer in the provided canvas context. Do not invent clients or KPIs that are not in context.',
     'When asked for a report, reply in Markdown with headings.',
     'When asked for a process map, flowchart or architecture diagram, include a mermaid fenced block.',
@@ -401,11 +433,16 @@ export function registerAiRoutes(app) {
 
   app.get('/api/ai/workspace', async (req, res) => {
     const canvasSlug = String(req.query.canvasSlug || '')
+    const tabSlug = String(req.query.tabSlug || '')
+    const subtabSlug = String(req.query.subtabSlug || '')
     const includeArchived = req.query.archived === '1'
     const resolved = await resolveProject(canvasSlug)
     const conversations = resolved.project
       ? await listConversations(resolved.project.id, includeArchived)
       : []
+    const bound = conversations.find(
+      (item) => item.canvasSlug === canvasSlug && item.tabSlug === tabSlug && item.subtabSlug === subtabSlug,
+    )
     res.json({
       status: {
         configured: aiConfig().configured,
@@ -416,7 +453,18 @@ export function registerAiRoutes(app) {
       projects: resolved.projects,
       trail: resolved.trail,
       conversations,
+      boundConversationId: bound?.id || null,
+      agents: PBMP_AGENTS,
+      team: PBMP_TEAM,
     })
+  })
+
+  app.get('/api/ai/agents', (_req, res) => {
+    res.json(PBMP_AGENTS)
+  })
+
+  app.get('/api/ai/team', (_req, res) => {
+    res.json(PBMP_TEAM)
   })
 
   app.get('/api/ai/projects', async (_req, res) => {
@@ -466,7 +514,7 @@ export function registerAiRoutes(app) {
     if (!existing[0]) return res.status(404).json({ error: 'Conversation not found' })
     await pool.query(
       `UPDATE ai_conversations
-       SET project_id=?, title=?, archived=?, pinned=?, temporary=?, canvas_slug=?
+       SET project_id=?, title=?, archived=?, pinned=?, temporary=?, canvas_slug=?, tab_slug=?, subtab_slug=?, agent_slug=?
        WHERE id=?`,
       [
         b.projectId ?? existing[0].project_id,
@@ -475,6 +523,9 @@ export function registerAiRoutes(app) {
         b.pinned == null ? existing[0].pinned : b.pinned ? 1 : 0,
         b.temporary == null ? existing[0].temporary : b.temporary ? 1 : 0,
         b.canvasSlug ?? existing[0].canvas_slug,
+        b.tabSlug ?? existing[0].tab_slug,
+        b.subtabSlug ?? existing[0].subtab_slug,
+        b.agentSlug ?? existing[0].agent_slug,
         req.params.id,
       ],
     )
@@ -496,6 +547,9 @@ export function registerAiRoutes(app) {
     const created = await createConversation({
       projectId: existing[0].project_id,
       canvasSlug: existing[0].canvas_slug,
+      tabSlug: existing[0].tab_slug,
+      subtabSlug: existing[0].subtab_slug,
+      agentSlug: existing[0].agent_slug,
       title: `Branch · ${existing[0].title}`.slice(0, 120),
     })
     for (const message of cut) {
@@ -528,12 +582,16 @@ export function registerAiRoutes(app) {
       conversationId,
       projectId,
       canvasSlug = '',
+      tabSlug = '',
+      subtabSlug = '',
+      agentSlug = 'general',
       title,
       message,
       image,
       temporary = false,
       context = {},
       replaceUserMessageId,
+      mentions = [],
     } = req.body || {}
 
     const trimmed = String(message || '').trim()
@@ -547,6 +605,9 @@ export function registerAiRoutes(app) {
       const created = await createConversation({
         projectId,
         canvasSlug,
+        tabSlug,
+        subtabSlug,
+        agentSlug,
         title: (title || trimmed || 'New conversation').slice(0, 80),
         temporary,
       })
@@ -577,12 +638,29 @@ export function registerAiRoutes(app) {
       if (Number(countRows[0].count) <= 1) {
         await pool.query('UPDATE ai_conversations SET title=? WHERE id=?', [trimmed.slice(0, 80) || 'New conversation', convoId])
       }
+      const tagged = PBMP_TEAM.filter((person) =>
+        mentions.includes(person.id) || trimmed.toLowerCase().includes(`@${person.name.toLowerCase()}`),
+      )
+      for (const person of tagged) {
+        await pool.query(
+          `INSERT INTO content_items
+            (menu_item_id, view_kind, block_type, title, subtitle, body, value_text, extra_json, sort_order)
+           VALUES (NULL,'highlight','highlight',?,?,?,?,?,0)`,
+          [
+            `Tagged ${person.name}`,
+            person.name,
+            trimmed.slice(0, 400),
+            'just now',
+            JSON.stringify({ tone: 'action', mention: person.id }),
+          ],
+        )
+      }
     }
 
-    await pool.query('UPDATE ai_conversations SET updated_at = CURRENT_TIMESTAMP, canvas_slug=? WHERE id=?', [
-      canvasSlug,
-      convoId,
-    ])
+    await pool.query(
+      'UPDATE ai_conversations SET updated_at = CURRENT_TIMESTAMP, canvas_slug=?, tab_slug=?, subtab_slug=?, agent_slug=? WHERE id=?',
+      [canvasSlug, tabSlug, subtabSlug, agentSlug, convoId],
+    )
 
     const history = await listMessages(convoId)
     const assistantId = randomUUID()
@@ -603,7 +681,7 @@ export function registerAiRoutes(app) {
         const body = await streamOpenAi({
           messages: buildModelMessages({
             history: history.filter((item) => item.id !== assistantId),
-            context,
+            context: { ...context, agentSlug },
             message: trimmed,
             imageData: image?.dataUrl,
           }),
@@ -615,7 +693,7 @@ export function registerAiRoutes(app) {
       } else {
         full = localAssistantReply({
           message: trimmed,
-          context,
+          context: { ...context, agentSlug },
           imageName: image?.name,
         })
         await streamText(res, full)

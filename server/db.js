@@ -201,4 +201,19 @@ export async function ensureSchema() {
       FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE
     )
   `)
+
+  async function addColumn(table, column, definition) {
+    const [rows] = await pool.query(
+      `SELECT COUNT(*) AS count FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+      [table, column],
+    )
+    if (!rows[0].count) {
+      await pool.query(`ALTER TABLE ${table} ADD COLUMN ${definition}`)
+    }
+  }
+
+  await addColumn('ai_conversations', 'tab_slug', "tab_slug VARCHAR(64) NOT NULL DEFAULT ''")
+  await addColumn('ai_conversations', 'subtab_slug', "subtab_slug VARCHAR(64) NOT NULL DEFAULT ''")
+  await addColumn('ai_conversations', 'agent_slug', "agent_slug VARCHAR(64) NOT NULL DEFAULT 'general'")
 }

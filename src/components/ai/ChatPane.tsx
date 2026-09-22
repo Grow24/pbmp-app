@@ -22,11 +22,17 @@ export function ChatPane() {
     pinConversation,
     forkConversation,
     sendMessage,
+    binding,
+    agents,
+    agentSlug,
+    setAgent,
+    team,
   } = useAi()
   const [draft, setDraft] = useState('')
   const [image, setImage] = useState<{ name: string; dataUrl: string } | null>(null)
   const [listening, setListening] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
+  const [mentionOpen, setMentionOpen] = useState(false)
   const scroller = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const recRef = useRef<{ stop: () => void } | null>(null)
@@ -109,11 +115,9 @@ export function ChatPane() {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
         <div className="min-w-0">
-          <p className="truncate text-[11px] text-slate-400">
-            {project?.name || 'No project'} · {canvas?.title || 'Canvas'}
-          </p>
+          <p className="truncate text-[11px] text-slate-400">{binding || `${project?.name || 'No project'} · ${canvas?.title || 'Canvas'}`}</p>
           <p className="truncate text-[12px] font-medium text-slate-700">
-            {conversation?.title || 'New conversation'}
+            {conversation?.title || 'New conversation for this tab'}
             {conversation?.temporary ? ' · temp' : ''}
           </p>
         </div>
@@ -131,9 +135,25 @@ export function ChatPane() {
       </div>
 
       <p className="border-b border-slate-100 px-3 py-1.5 text-[10px] text-slate-400">
-        {status?.configured ? `Model · ${status.model}` : 'Local canvas assistant · add AI_API_KEY for LibreChat/OpenAI'}
+        {status?.configured ? `Model · ${status.model}` : 'Local canvas assistant'}
+        {' · '}
+        {agents.find((item) => item.slug === agentSlug)?.name || 'General assistant'}
         {quote ? ' · quote attached' : ''}
       </p>
+      <div className="flex gap-1 overflow-x-auto border-b border-slate-100 px-3 py-1.5">
+        {agents.map((agent) => (
+          <button
+            key={agent.slug}
+            type="button"
+            onClick={() => void setAgent(agent.slug)}
+            className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${
+              agent.slug === agentSlug ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500'
+            }`}
+          >
+            {agent.name}
+          </button>
+        ))}
+      </div>
 
       <div ref={scroller} className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
         {visible.map((message) => (
@@ -146,7 +166,21 @@ export function ChatPane() {
               {message.imageData && (
                 <img src={message.imageData} alt={message.imageName || 'upload'} className="mb-2 max-h-36 rounded" />
               )}
-              {message.role === 'assistant' ? <MarkdownView text={message.text} /> : <p className="text-[13px] leading-relaxed">{message.text}</p>}
+              {message.role === 'assistant' ? (
+                <MarkdownView text={message.text} />
+              ) : (
+                <p className="text-[13px] leading-relaxed">
+                  {message.text.split(/(@[A-Za-z][A-Za-z .]+)/g).map((part, index) =>
+                    part.startsWith('@') ? (
+                      <span key={index} className="rounded bg-white/20 px-1 font-medium">
+                        {part}
+                      </span>
+                    ) : (
+                      <span key={index}>{part}</span>
+                    ),
+                  )}
+                </p>
+              )}
               {message.role === 'assistant' && message.id !== 'welcome' && (
                 <div className="mt-2 flex gap-1">
                   <IconBtn
@@ -203,12 +237,34 @@ export function ChatPane() {
       <form onSubmit={submit} className="border-t border-slate-200 p-3">
         <textarea
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            const value = event.target.value
+            setDraft(value)
+            setMentionOpen(value.endsWith('@') || /@[A-Za-z]*$/.test(value))
+          }}
           onPaste={(event) => void onPaste(event)}
-          placeholder={editId ? 'Edit prompt and regenerate…' : 'Ask about this canvas…'}
+          placeholder={editId ? 'Edit prompt and regenerate…' : 'Ask about this canvas…  @ to tag'}
           rows={3}
           className="w-full resize-none rounded border border-slate-200 px-2.5 py-2 text-[13px] outline-none placeholder:text-slate-400 focus:border-brand-500"
         />
+        {mentionOpen && (
+          <div className="mt-1 overflow-hidden rounded border border-slate-200 bg-white text-[12px] shadow-sm">
+            {team.map((person) => (
+              <button
+                key={person.id}
+                type="button"
+                className="flex w-full items-center justify-between px-2 py-1.5 text-left hover:bg-slate-50"
+                onClick={() => {
+                  setDraft((prev) => prev.replace(/@([A-Za-z]*)$/, `@${person.name} `))
+                  setMentionOpen(false)
+                }}
+              >
+                <span className="font-medium text-slate-800">@{person.name}</span>
+                <span className="text-slate-400">{person.role}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="mt-2 flex items-center justify-between gap-2">
           <div className="flex items-center gap-1">
             <input

@@ -1,5 +1,6 @@
-import { FolderKanban, Highlighter, MessageSquare, Sparkles, X } from 'lucide-react'
+import { Bot, FolderKanban, Highlighter, MessageSquare, Sparkles, X } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { AgentsPane } from '../ai/AgentsPane'
 import { ArtifactsPane } from '../ai/ArtifactsPane'
 import { ChatPane } from '../ai/ChatPane'
 import { ProjectsPane } from '../ai/ProjectsPane'
@@ -15,6 +16,7 @@ const tabs = [
   { id: 'chat', label: 'Chat' },
   { id: 'projects', label: 'Projects' },
   { id: 'artifacts', label: 'Artifacts' },
+  { id: 'agents', label: 'Agents' },
   { id: 'highlight', label: 'Highlight' },
 ] as const
 
@@ -52,6 +54,15 @@ export function RightPanel() {
           <Sparkles className="h-4 w-4" />
         </RailButton>
         <RailButton
+          label="Agents"
+          onClick={() => {
+            setRightTab('agents')
+            setRightOpen(true)
+          }}
+        >
+          <Bot className="h-4 w-4" />
+        </RailButton>
+        <RailButton
           label="Highlight"
           onClick={() => {
             setRightTab('highlight')
@@ -74,7 +85,9 @@ export function RightPanel() {
               ? 'Projects'
               : rightTab === 'artifacts'
                 ? 'Artifacts'
-                : 'Highlights'}
+                : rightTab === 'agents'
+                  ? 'Agents'
+                  : 'Highlights'}
         </span>
         <button
           type="button"
@@ -104,21 +117,26 @@ export function RightPanel() {
       {rightTab === 'chat' && <ChatPane />}
       {rightTab === 'projects' && <ProjectsPane />}
       {rightTab === 'artifacts' && <ArtifactsPane />}
+      {rightTab === 'agents' && <AgentsPane />}
       {rightTab === 'highlight' && (
         <div className="flex-1 space-y-2 overflow-y-auto p-3">
-          {highlights.map((item) => (
-            <article key={item.id} className="ui-card p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${toneClass[item.tone]}`}>
-                  {item.tone}
-                </span>
-                <span className="text-[11px] text-slate-400">{item.time}</span>
-              </div>
-              <h3 className="mt-2 text-[13px] font-medium text-slate-900">{item.title}</h3>
-              <p className="mt-1 text-[13px] leading-relaxed text-slate-600">{item.note}</p>
-              <p className="mt-2 text-[11px] text-slate-400">{item.author}</p>
-            </article>
-          ))}
+          {highlights.length ? (
+            highlights.map((item) => (
+              <article key={item.id} className="ui-card p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${toneClass[item.tone]}`}>
+                    {item.tone}
+                  </span>
+                  <span className="text-[11px] text-slate-400">{item.time}</span>
+                </div>
+                <h3 className="mt-2 text-[13px] font-medium text-slate-900">{item.title}</h3>
+                <p className="mt-1 text-[13px] leading-relaxed text-slate-600">{item.note}</p>
+                <p className="mt-2 text-[11px] text-slate-400">{item.author}</p>
+              </article>
+            ))
+          ) : (
+            <p className="text-[13px] text-slate-500">No highlights yet. Tag someone with @Priya Shah in chat to post one.</p>
+          )}
         </div>
       )}
     </aside>

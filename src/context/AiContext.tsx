@@ -9,7 +9,8 @@ import {
   type ReactNode,
 } from 'react'
 import { prefsFromSettings, prefsToSettings } from '../ai/prefs'
-import type { AiArtifact, AiConversation, AiMessage, AiPrefs, AiProject, AiStatus } from '../ai/types'
+import type { AiAgent, AiArtifact, AiConversation, AiMessage, AiPrefs, AiProject, AiStatus, AiTeammate } from '../ai/types'
+import { PBMP_AGENTS, PBMP_TEAM } from '../ai/catalog'
 import { aiApi, type ChatContextPayload } from '../lib/aiApi'
 import { api } from '../lib/api'
 import { useWorkbench } from './WorkbenchContext'
@@ -46,6 +47,11 @@ type AiContextValue = {
   saveArtifact: (id: string) => Promise<void>
   searchConversations: (q: string) => Promise<AiConversation[]>
   createProject: (name: string) => Promise<void>
+  agents: AiAgent[]
+  team: AiTeammate[]
+  agentSlug: string
+  setAgent: (slug: string) => Promise<void>
+  binding: string
 }
 
 const AiContext = createContext<AiContextValue | null>(null)
@@ -90,37 +96,44 @@ export function AiProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [quote, setQuote] = useState('')
   const [showArchived, setShowArchived] = useState(false)
+  const [agents, setAgents] = useState<AiAgent[]>([...PBMP_AGENTS])
+  const [team, setTeam] = useState<AiTeammate[]>([...PBMP_TEAM])
+  const [agentSlug, setAgentSlug] = useState('general')
   const conversationRef = useRef<AiConversation | null>(null)
   conversationRef.current = conversation
 
   const prefs = useMemo(() => prefsFromSettings(settings), [settings])
 
-  const applyWorkspace = useCallback(async (keepConversationId?: string) => {
-    const data = await aiApi.workspace(selectedId, showArchived)
+  const tabSlug = activeTab?.id || ''
+  const subtabSlug = activeSubtab?.id || ''
+  const binding = [selectedItem?.label || selectedId, activeTab?.label, activeSubtab?.label].filter(Boolean).join(' · ')
+
+  const applyWorkspace = useCallback(async () => {
+    const data = await aiApi.workspace(selectedId, showArchived, tabSlug, subtabSlug)
     setStatus(data.status)
     setProjects(data.projects)
     setProject(data.project)
     setTrail(data.trail)
     setConversations(data.conversations)
-    const keep =
-      (keepConversationId && data.conversations.find((item) => item.id === keepConversationId)) ||
-      data.conversations.find((item) => item.canvasSlug === selectedId) ||
-      data.conversations[0]
-    if (keep) {
-      const detail = await aiApi.conversation(keep.id)
+    if (data.agents?.length) setAgents(data.agents)
+    if (data.team?.length) setTeam(data.team)
+    const bound = data.conversations.find((item) => item.id === data.boundConversationId)
+    if (bound) {
+      const detail = await aiApi.conversation(bound.id)
       setConversation(detail.conversation)
       setMessages(detail.messages)
       setArtifacts(detail.artifacts)
+      setAgentSlug(detail.conversation.agentSlug || 'general')
     } else {
       setConversation(null)
       setMessages([])
       setArtifacts([])
     }
-  }, [selectedId, showArchived])
+  }, [selectedId, showArchived, tabSlug, subtabSlug])
 
   const loadWorkspace = useCallback(async () => {
     try {
-      await applyWorkspace(conversationRef.current?.id)
+      await applyWorkspace()
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load AI workspace')
@@ -130,7 +143,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!selectedId) return
     applyWorkspace().catch((err: Error) => setError(err.message))
-  }, [selectedId, showArchived, applyWorkspace])
+  }, [selectedId, tabSlug, subtabSlug, showArchived, applyWorkspace])
 
   const selectConversation = useCallback(async (id: string) => {
     const detail = await aiApi.conversation(id)
@@ -146,6 +159,9 @@ export function AiProvider({ children }: { children: ReactNode }) {
       const created = await aiApi.createConversation({
         projectId: project.id,
         canvasSlug: selectedId,
+        tabSlug,
+        subtabSlug,
+        agentSlug,
         title: temporary ? 'Temporary chat' : 'New conversation',
         temporary,
       })
@@ -156,7 +172,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
       setRightTab('chat')
       setRightOpen(true)
     },
-    [project, selectedId, setRightOpen, setRightTab],
+    [project, selectedId, tabSlug, subtabSlug, agentSlug, setRightOpen, setRightTab],
   )
 
   const moveConversation = useCallback(
@@ -164,7 +180,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
       if (!conversation) return
       const updated = await aiApi.patchConversation(conversation.id, { projectId })
       setConversation(updated)
-      await applyWorkspace(updated.id)
+      await applyWorkspace()
     },
     [applyWorkspace, conversation],
   )
@@ -189,7 +205,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
     async (upToMessageId?: string) => {
       if (!conversation) return
       const created = await aiApi.forkConversation(conversation.id, upToMessageId)
-      await applyWorkspace(created.id)
+      await applyWorkspace()
       await selectConversation(created.id)
     },
     [applyWorkspace, conversation, selectConversation],
@@ -225,6 +241,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
         ]
       })
 
+      const mentioned = team.filter((person) => quoted.toLowerCase().includes(`@${person.name.toLowerCase()}`)).map((person) => person.id)
       const context: ChatContextPayload = {
         title: canvas?.title,
         description: canvas?.description,
@@ -232,6 +249,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
         tab: activeTab?.label,
         subtab: activeSubtab?.label,
         viewKind,
+        agentSlug,
         blocks: canvasBlocks(blocks()),
       }
 
@@ -243,12 +261,16 @@ export function AiProvider({ children }: { children: ReactNode }) {
             conversationId: conversation?.id,
             projectId: project.id,
             canvasSlug: selectedId,
+            tabSlug,
+            subtabSlug,
+            agentSlug,
             title: canvas?.title,
             message: quoted,
             image,
             temporary: conversation?.temporary || false,
             context,
             replaceUserMessageId,
+            mentions: mentioned,
           }),
         })
         if (!response.ok || !response.body) {
@@ -303,6 +325,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
                   setRightTab('artifacts')
                 }
               }
+              if (mentioned.length) void reload()
             }
           }
         }
@@ -327,7 +350,23 @@ export function AiProvider({ children }: { children: ReactNode }) {
       setRightOpen,
       setRightTab,
       viewKind,
+      tabSlug,
+      subtabSlug,
+      agentSlug,
+      team,
+      reload,
     ],
+  )
+
+  const setAgent = useCallback(
+    async (slug: string) => {
+      setAgentSlug(slug)
+      if (conversation) {
+        const updated = await aiApi.patchConversation(conversation.id, { agentSlug: slug })
+        setConversation(updated)
+      }
+    },
+    [conversation],
   )
 
   const saveArtifact = useCallback(
@@ -349,7 +388,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
   const createProject = useCallback(
     async (name: string) => {
       await aiApi.createProject({ name, kind: 'programme' })
-      await applyWorkspace(conversation?.id)
+      await applyWorkspace()
     },
     [applyWorkspace, conversation?.id],
   )
@@ -395,11 +434,19 @@ export function AiProvider({ children }: { children: ReactNode }) {
       saveArtifact,
       searchConversations,
       createProject,
+      agents,
+      team,
+      agentSlug,
+      setAgent,
+      binding,
     }),
     [
       activeArtifact,
       archiveConversation,
       artifacts,
+      agentSlug,
+      agents,
+      binding,
       conversation,
       conversations,
       createProject,
@@ -420,9 +467,11 @@ export function AiProvider({ children }: { children: ReactNode }) {
       searchConversations,
       selectConversation,
       sendMessage,
+      setAgent,
       showArchived,
       status,
       streaming,
+      team,
       trail,
     ],
   )

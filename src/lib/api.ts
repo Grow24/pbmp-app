@@ -79,4 +79,5 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   deleteFilter: (id: number) => request(`/filters/${id}`, { method: 'DELETE' }),
+  reorderContent: (ids: number[]) => request<{ ok: boolean }>('/content/reorder', { method: 'POST', body: JSON.stringify({ ids }) }),
 }

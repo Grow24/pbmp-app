@@ -1,4 +1,4 @@
-import type { AiArtifact, AiConversation, AiMessage, AiProject, AiStatus } from '../ai/types'
+import type { AiArtifact, AiConversation, AiMessage, AiProject, AiStatus, AiAgent, AiTeammate } from '../ai/types'
 
 export type WorkspacePayload = {
   status: AiStatus
@@ -6,6 +6,9 @@ export type WorkspacePayload = {
   projects: AiProject[]
   trail: string[]
   conversations: AiConversation[]
+  boundConversationId?: string | null
+  agents?: AiAgent[]
+  team?: AiTeammate[]
 }
 
 export type ConversationDetail = {
@@ -21,6 +24,7 @@ export type ChatContextPayload = {
   tab?: string
   subtab?: string
   viewKind?: string
+  agentSlug?: string
   blocks?: Array<{ type?: string; title?: string; subtitle?: string; value?: string; body?: string }>
 }
 
@@ -33,18 +37,39 @@ async function readJson<T>(response: Response): Promise<T> {
 }
 
 export const aiApi = {
-  workspace: (canvasSlug: string, archived = false) =>
-    fetch(`/api/ai/workspace?canvasSlug=${encodeURIComponent(canvasSlug)}&archived=${archived ? '1' : '0'}`).then((r) =>
-      readJson<WorkspacePayload>(r),
-    ),
+  workspace: (canvasSlug: string, archived = false, tabSlug = '', subtabSlug = '') =>
+    fetch(
+      `/api/ai/workspace?canvasSlug=${encodeURIComponent(canvasSlug)}&tabSlug=${encodeURIComponent(tabSlug)}&subtabSlug=${encodeURIComponent(subtabSlug)}&archived=${archived ? '1' : '0'}`,
+    ).then((r) => readJson<WorkspacePayload>(r)),
   conversation: (id: string) => fetch(`/api/ai/conversations/${id}`).then((r) => readJson<ConversationDetail>(r)),
-  createConversation: (payload: { projectId: number; canvasSlug?: string; title?: string; temporary?: boolean }) =>
+  createConversation: (payload: {
+    projectId: number
+    canvasSlug?: string
+    tabSlug?: string
+    subtabSlug?: string
+    agentSlug?: string
+    title?: string
+    temporary?: boolean
+  }) =>
     fetch('/api/ai/conversations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     }).then((r) => readJson<AiConversation>(r)),
-  patchConversation: (id: string, payload: Partial<{ projectId: number; title: string; archived: boolean; pinned: boolean; temporary: boolean; canvasSlug: string }>) =>
+  patchConversation: (
+    id: string,
+    payload: Partial<{
+      projectId: number
+      title: string
+      archived: boolean
+      pinned: boolean
+      temporary: boolean
+      canvasSlug: string
+      tabSlug: string
+      subtabSlug: string
+      agentSlug: string
+    }>,
+  ) =>
     fetch(`/api/ai/conversations/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

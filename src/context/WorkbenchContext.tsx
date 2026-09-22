@@ -25,7 +25,7 @@ import type {
   ViewKind,
 } from '../types'
 
-type RightTab = 'chat' | 'projects' | 'artifacts' | 'highlight'
+type RightTab = 'chat' | 'projects' | 'artifacts' | 'agents' | 'highlight'
 
 type WorkbenchContextValue = {
   loading: boolean
@@ -61,6 +61,9 @@ type WorkbenchContextValue = {
   activeFilterIds: number[]
   toggleFilter: (id: number) => void
   filterItems: <T extends ContentBlock>(items: T[]) => T[]
+  prefsOpen: boolean
+  setPrefsOpen: (value: boolean) => void
+  reorderBlocks: (ids: number[]) => Promise<void>
 }
 
 const WorkbenchContext = createContext<WorkbenchContextValue | null>(null)
@@ -97,6 +100,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const [rightOpen, setRightOpen] = useState(() => window.innerWidth >= 1280)
   const [rightTab, setRightTab] = useState<RightTab>('chat')
   const [search, setSearch] = useState('')
+  const [prefsOpen, setPrefsOpen] = useState(false)
   const [activeFilterIds, setActiveFilterIds] = useState<number[]>(() => {
     try {
       const raw = window.sessionStorage.getItem('pbmp-active-filters')
@@ -236,6 +240,11 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  const reorderBlocks = useCallback(async (ids: number[]) => {
+    await api.reorderContent(ids)
+    await reload()
+  }, [reload])
+
   const value = useMemo<WorkbenchContextValue>(
     () => ({
       loading,
@@ -271,6 +280,9 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       activeFilterIds,
       toggleFilter,
       filterItems,
+      prefsOpen,
+      setPrefsOpen,
+      reorderBlocks,
     }),
     [
       activeSubtab,
@@ -284,7 +296,9 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       loading,
       menuSections,
       mobileNavOpen,
+      prefsOpen,
       reload,
+      reorderBlocks,
       rightOpen,
       rightTab,
       search,

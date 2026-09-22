@@ -405,6 +405,14 @@ app.delete('/api/content/:id', async (req, res) => {
   res.json({ ok: true })
 })
 
+app.post('/api/content/reorder', async (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids : []
+  for (const [index, id] of ids.entries()) {
+    await pool.query('UPDATE content_items SET sort_order = ? WHERE id = ?', [index + 1, id])
+  }
+  res.json({ ok: true })
+})
+
 app.get('/api/filters', async (_req, res) => {
   res.json(await loadFilters())
 })

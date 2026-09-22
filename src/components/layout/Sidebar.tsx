@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, ExternalLink, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink, PanelLeftClose, PanelLeftOpen, Search, Settings } from 'lucide-react'
 import { getIcon } from '../../icons'
 import { useWorkbench } from '../../context/WorkbenchContext'
 import type { MenuItem } from '../../types'
@@ -98,7 +98,7 @@ function SidebarRow({ item, depth }: { item: MenuItem; depth: number }) {
 }
 
 export function Sidebar() {
-  const { search, setSearch, sidebarCollapsed, setSidebarCollapsed, mobileNavOpen, setMobileNavOpen, menuSections } =
+  const { search, setSearch, sidebarCollapsed, setSidebarCollapsed, mobileNavOpen, setMobileNavOpen, menuSections, setPrefsOpen, settings } =
     useWorkbench()
 
   const body = (
@@ -147,6 +147,23 @@ export function Sidebar() {
           )
         })}
       </nav>
+      <div className="border-t border-slate-100 p-2">
+        <button
+          type="button"
+          onClick={() => setPrefsOpen(true)}
+          title="Personal preferences"
+          className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-slate-600 hover:bg-slate-50 ${
+            sidebarCollapsed ? 'justify-center' : ''
+          }`}
+        >
+          <Settings className="h-4 w-4 shrink-0 text-slate-400" />
+          {!sidebarCollapsed && (
+            <span className="min-w-0 flex-1 truncate text-[12px]">
+              {settings.user_name || 'Preferences'}
+            </span>
+          )}
+        </button>
+      </div>
     </aside>
   )
 

@@ -1,18 +1,41 @@
+import { GripVertical } from 'lucide-react'
 import { useWorkbench } from '../../../context/WorkbenchContext'
 
 export function DashboardView() {
-  const { blocks, filterItems } = useWorkbench()
+  const { blocks, filterItems, reorderBlocks } = useWorkbench()
   const kpis = blocks('dashboard').filter((item) => item.blockType === 'kpi')
   const work = filterItems(blocks('dashboard').filter((item) => item.blockType === 'work_row'))
   const sprint = blocks('dashboard').find((item) => item.blockType === 'sprint')
   const stats = blocks('dashboard').filter((item) => item.blockType === 'sprint_stat')
 
+  const moveKpi = (from: number, to: number) => {
+    if (to < 0 || to >= kpis.length) return
+    const ids = kpis.map((item) => item.id)
+    const [moved] = ids.splice(from, 1)
+    ids.splice(to, 0, moved)
+    void reorderBlocks(ids)
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-4">
+      <p className="text-[11px] text-slate-400">Drag the handle to rearrange KPI widgets. Order is saved for everyone.</p>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((kpi) => (
-          <article key={kpi.id} className="ui-card p-4">
-            <p className="text-xs text-slate-500">{kpi.title}</p>
+        {kpis.map((kpi, index) => (
+          <article
+            key={kpi.id}
+            draggable
+            onDragStart={(event) => event.dataTransfer.setData('text/plain', String(index))}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault()
+              moveKpi(Number(event.dataTransfer.getData('text/plain')), index)
+            }}
+            className="ui-card p-4"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-xs text-slate-500">{kpi.title}</p>
+              <GripVertical className="h-3.5 w-3.5 cursor-grab text-slate-300" />
+            </div>
             <div className="mt-2 flex items-end gap-1">
               <span className="text-2xl font-semibold text-slate-900">{kpi.value}</span>
               <span className="mb-0.5 text-sm text-slate-400">{String(kpi.extra.suffix || '')}</span>

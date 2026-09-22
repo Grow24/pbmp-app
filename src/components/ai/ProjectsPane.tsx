@@ -59,7 +59,7 @@ export function ProjectsPane() {
         >
           <div className="truncate text-[13px] font-medium text-slate-800">{item.title}</div>
           <div className="text-[11px] text-slate-400">
-            {item.canvasSlug || 'workspace'}
+            {[item.canvasSlug, item.tabSlug, item.subtabSlug].filter(Boolean).join(' / ') || 'workspace'}
             {item.pinned ? ' · pinned' : ''}
             {item.archived ? ' · archived' : ''}
           </div>

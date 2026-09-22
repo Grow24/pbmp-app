@@ -22,11 +22,26 @@ export type AiConversation = {
   id: string
   projectId: number
   canvasSlug: string
+  tabSlug?: string
+  subtabSlug?: string
+  agentSlug?: string
   title: string
   archived: boolean
   pinned: boolean
   temporary: boolean
   updatedAt: string
+}
+
+export type AiAgent = {
+  slug: string
+  name: string
+  role: string
+}
+
+export type AiTeammate = {
+  id: string
+  name: string
+  role: string
 }
 
 export type AiArtifact = {
@@ -63,4 +78,4 @@ export type AiImage = {
   dataUrl: string
 }
 
-export type RightAiTab = 'chat' | 'projects' | 'artifacts' | 'highlight'
+export type RightAiTab = 'chat' | 'projects' | 'artifacts' | 'agents' | 'highlight'

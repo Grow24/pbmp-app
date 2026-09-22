@@ -5,6 +5,7 @@ import { Footer } from './components/layout/Footer'
 import { Header } from './components/layout/Header'
 import { RightPanel } from './components/layout/RightPanel'
 import { Sidebar } from './components/layout/Sidebar'
+import { PrefsDrawer } from './components/ai/PrefsDrawer'
 import { AiProvider } from './context/AiContext'
 import { WorkbenchProvider, useWorkbench } from './context/WorkbenchContext'
 
@@ -50,6 +51,7 @@ function Shell() {
         />
       )}
       <Footer />
+      <PrefsDrawer />
     </div>
   )
 }
