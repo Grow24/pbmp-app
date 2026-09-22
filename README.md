@@ -80,6 +80,7 @@ Rules:
 
 - Create `DB_*` on the Node service. Do **not** create `MYSQL_*` on the Node service; those come from MySQL and would be overwritten.
 - `PORT` is injected by Zeabur. Do not hardcode `5173` or `5174`.
+- Keep `NODE_ENV=production` on the Node service. The Dockerfile installs build tools even when that variable is present.
 - Redeploy after saving variables.
 
 ### 5. Domain
