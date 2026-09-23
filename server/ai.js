@@ -1,12 +1,47 @@
 import { randomUUID } from 'node:crypto'
-import { pool } from './db.js'
+import { dbConfig, pool } from './db.js'
 
 const PBMP_AGENTS = [
-  { slug: 'general', name: 'General assistant', role: 'Default copilot for the open canvas' },
-  { slug: 'executive-analyst', name: 'Executive Analyst', role: 'Board summaries, KPIs, and decisions' },
-  { slug: 'business-analyst', name: 'Business Analyst', role: 'AS-IS, process, and requirements' },
-  { slug: 'finance-analyst', name: 'Finance Analyst', role: 'Pricing, cost, and cycle time' },
-  { slug: 'project-manager', name: 'Project Manager', role: 'Owners, risks, and next steps' },
+  {
+    slug: 'general',
+    name: 'General assistant',
+    role: 'Default copilot for the open canvas',
+    useWhen: 'Everyday questions, walk the current tab, or you are not sure which lens to pick.',
+    ask: 'What does this canvas already show, and what should we open next?',
+    instruction: 'Answer as a general workbench copilot. Stay on the open canvas. Offer a short next step.',
+  },
+  {
+    slug: 'executive-analyst',
+    name: 'Executive Analyst',
+    role: 'Board summaries, KPIs, and decisions',
+    useWhen: 'Steering or leadership needs a short read: what matters, what is at risk, what to decide.',
+    ask: 'Give a board-ready summary of this canvas in five lines.',
+    instruction: 'Answer as an Executive Analyst. Prefer KPIs, decisions, risks, and a one-line recommendation. Skip process detail unless asked.',
+  },
+  {
+    slug: 'business-analyst',
+    name: 'Business Analyst',
+    role: 'AS-IS, process, and requirements',
+    useWhen: 'You are on Assess, Maps, or Inquiry and need the current-state story or a requirement.',
+    ask: 'Walk the AS-IS process and name the binding constraint.',
+    instruction: 'Answer as a Business Analyst. Focus on AS-IS process, ownership, requirements, and gaps on this canvas.',
+  },
+  {
+    slug: 'finance-analyst',
+    name: 'Finance Analyst',
+    role: 'Pricing, cost, and cycle time',
+    useWhen: 'The question is about price, margin, cycle time, or a number on the canvas.',
+    ask: 'Why is pricing the weak score, and what does that do to cycle time?',
+    instruction: 'Answer as a Finance Analyst. Ground every point in numbers on the canvas: price, cost, cycle time, leakage.',
+  },
+  {
+    slug: 'project-manager',
+    name: 'Project Manager',
+    role: 'Owners, risks, and next steps',
+    useWhen: 'You need who owns the work, what is blocked, and the next action this week.',
+    ask: 'Who owns the next step, and what is at risk if we miss Friday?',
+    instruction: 'Answer as a Project Manager. Name owners, dates, risks, and a concrete next step. Do not write strategy essays.',
+  },
 ]
 
 const PBMP_TEAM = [
@@ -28,6 +63,104 @@ function envFirst(...keys) {
     return trimmed
   }
   return ''
+}
+
+function detectProvider(config) {
+  const base = String(config.base || '').toLowerCase()
+  const model = String(config.model || '').toLowerCase()
+  if (/generativelanguage|googleapis\.com/.test(base) || model.includes('gemini')) {
+    return { id: 'gemini', label: 'Gemini (Google)' }
+  }
+  if (/anthropic/.test(base) || model.includes('claude')) {
+    return { id: 'claude', label: 'Claude (Anthropic)' }
+  }
+  if (base.includes('openrouter')) {
+    return { id: 'openrouter', label: 'OpenRouter' }
+  }
+  if (/ollama|11434/.test(base) || /localhost|127\.0\.0\.1/.test(base)) {
+    return { id: 'ollama', label: 'Local model (Ollama / compatible)' }
+  }
+  if (base.includes('openai.com')) {
+    return { id: 'chatgpt', label: 'ChatGPT (OpenAI)' }
+  }
+  return { id: 'remote', label: 'OpenAI-compatible API' }
+}
+
+function mysqlLabel() {
+  return `${dbConfig.database} on ${dbConfig.host}:${dbConfig.port}`
+}
+
+function buildInfoPath({
+  context = {},
+  historyCount = 0,
+  imageName,
+  mentions = [],
+  usedRemote,
+  fallbackError,
+  taggedCount = 0,
+}) {
+  const config = aiConfig()
+  const provider = detectProvider(config)
+  const blocks = Array.isArray(context.blocks) ? context.blocks : []
+  const titles = blocks
+    .map((block) => block.title || block.type)
+    .filter(Boolean)
+    .slice(0, 8)
+  const canvas = [context.title, context.tab, context.subtab].filter(Boolean).join(' · ') || 'open canvas'
+  const steps = [
+    {
+      n: 1,
+      title: 'This workbench',
+      detail: `Chat POST /api/ai/chat from ${canvas}. Question stayed inside PBMP — it was not typed into a public ChatGPT or Gemini window.`,
+    },
+    {
+      n: 2,
+      title: `MySQL · ${mysqlLabel()}`,
+      detail: `Looked up this conversation in ai_conversations / ai_messages (${historyCount} prior turn${historyCount === 1 ? '' : 's'}). Canvas facts on the request came from content_items.`,
+    },
+    {
+      n: 3,
+      title: 'Canvas facts attached',
+      detail: titles.length
+        ? `${blocks.length} block${blocks.length === 1 ? '' : 's'} sent as context: ${titles.join(', ')}${blocks.length > titles.length ? '…' : ''}.`
+        : 'No structured canvas blocks were attached this turn.',
+    },
+  ]
+
+  if (usedRemote) {
+    steps.push({
+      n: 4,
+      title: provider.label,
+      detail: `Called ${config.base}/chat/completions · model ${config.model}. Sent: system prompt (PBMP role + canvas facts), last ${Math.min(historyCount, 16)} turns, this question${imageName ? `, and image ${imageName}` : ''}. Did not send DB passwords or other users' chats.`,
+    })
+  } else if (fallbackError) {
+    steps.push({
+      n: 4,
+      title: `${provider.label} failed — local fallback`,
+      detail: `Tried ${config.base} · ${config.model}, then stopped. Error: ${String(fallbackError).slice(0, 180)}. Reply was built here from canvas facts. ChatGPT / Gemini were not used for the final answer.`,
+    })
+  } else {
+    steps.push({
+      n: 4,
+      title: 'Local canvas assistant',
+      detail: 'AI_API_KEY is empty, so this reply was written on the PBMP server from the open canvas. It did not go to ChatGPT or Gemini.',
+    })
+  }
+
+  steps.push({
+    n: 5,
+    title: 'Saved in MySQL',
+    detail:
+      `Reply stored in ${mysqlLabel()} · ai_messages.` +
+      (taggedCount ? ` Also wrote ${taggedCount} Highlight row${taggedCount === 1 ? '' : 's'} to content_items.` : '') +
+      (mentions.length ? ` Tags: ${mentions.join(', ')}.` : ''),
+  })
+
+  return {
+    used: usedRemote ? provider.id : fallbackError ? 'fallback' : 'local',
+    provider: usedRemote ? provider.label : fallbackError ? 'Local fallback' : 'Local canvas assistant',
+    steps,
+  }
 }
 
 function aiConfig() {
@@ -69,6 +202,16 @@ function mapConversation(row) {
   }
 }
 
+function parseTrace(value) {
+  if (!value) return null
+  if (typeof value === 'object') return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
 function mapMessage(row) {
   return {
     id: row.id,
@@ -77,6 +220,7 @@ function mapMessage(row) {
     imageName: row.image_name,
     imageData: row.image_data,
     createdAt: row.created_at,
+    path: parseTrace(row.trace_json),
   }
 }
 
@@ -364,9 +508,10 @@ async function streamOpenAi({ messages, signal }) {
 function buildModelMessages({ history, context, message, imageData }) {
   const system = [
     'You are the PBMP workbench assistant. You sit beside the user\'s current canvas.',
-    agentBySlug(context.agentSlug).name !== 'General assistant'
-      ? `You are acting as ${agentBySlug(context.agentSlug).name}: ${agentBySlug(context.agentSlug).role}.`
-      : '',
+    (() => {
+      const agent = agentBySlug(context.agentSlug)
+      return `You are acting as ${agent.name}. ${agent.instruction || agent.role}`
+    })(),
     'Ground every answer in the provided canvas context. Do not invent clients or KPIs that are not in context.',
     'When asked for a report, reply in Markdown with headings.',
     'When asked for a process map, flowchart or architecture diagram, include a mermaid fenced block.',
@@ -628,6 +773,10 @@ export function registerAiRoutes(app) {
       }
     }
 
+    const tagged = PBMP_TEAM.filter((person) =>
+      mentions.includes(person.id) || trimmed.toLowerCase().includes(`@${person.name.toLowerCase()}`),
+    )
+
     if (!replaceUserMessageId) {
       await pool.query(
         `INSERT INTO ai_messages (id, conversation_id, role, text, image_name, image_data)
@@ -638,20 +787,18 @@ export function registerAiRoutes(app) {
       if (Number(countRows[0].count) <= 1) {
         await pool.query('UPDATE ai_conversations SET title=? WHERE id=?', [trimmed.slice(0, 80) || 'New conversation', convoId])
       }
-      const tagged = PBMP_TEAM.filter((person) =>
-        mentions.includes(person.id) || trimmed.toLowerCase().includes(`@${person.name.toLowerCase()}`),
-      )
+      const from = [context.title || title, context.tab, context.subtab].filter(Boolean).join(' · ')
       for (const person of tagged) {
         await pool.query(
           `INSERT INTO content_items
             (menu_item_id, view_kind, block_type, title, subtitle, body, value_text, extra_json, sort_order)
            VALUES (NULL,'highlight','highlight',?,?,?,?,?,0)`,
           [
-            `Tagged ${person.name}`,
+            `For ${person.name}`,
             person.name,
             trimmed.slice(0, 400),
             'just now',
-            JSON.stringify({ tone: 'action', mention: person.id }),
+            JSON.stringify({ tone: 'action', mention: person.id, from }),
           ],
         )
       }
@@ -674,10 +821,21 @@ export function registerAiRoutes(app) {
     res.flushHeaders?.()
     writeEvent(res, { type: 'meta', conversationId: convoId, messageId: assistantId })
 
+    const pathArgs = {
+      context: { ...context, agentSlug },
+      historyCount: history.filter((item) => item.role === 'user' || item.role === 'assistant').length,
+      imageName: image?.name,
+      mentions: tagged.map((person) => person.name),
+      taggedCount: replaceUserMessageId ? 0 : tagged.length,
+    }
+
     let full = ''
+    let infoPath = buildInfoPath({ ...pathArgs, usedRemote: false })
     try {
       const config = aiConfig()
       if (config.configured) {
+        infoPath = buildInfoPath({ ...pathArgs, usedRemote: true })
+        writeEvent(res, { type: 'path', path: infoPath })
         const body = await streamOpenAi({
           messages: buildModelMessages({
             history: history.filter((item) => item.id !== assistantId),
@@ -691,6 +849,7 @@ export function registerAiRoutes(app) {
           writeEvent(res, { type: 'delta', text: piece })
         })
       } else {
+        writeEvent(res, { type: 'path', path: infoPath })
         full = localAssistantReply({
           message: trimmed,
           context: { ...context, agentSlug },
@@ -699,6 +858,8 @@ export function registerAiRoutes(app) {
         await streamText(res, full)
       }
     } catch (error) {
+      infoPath = buildInfoPath({ ...pathArgs, usedRemote: false, fallbackError: error.message })
+      writeEvent(res, { type: 'path', path: infoPath })
       const fallback = localAssistantReply({ message: trimmed, context, imageName: image?.name })
       const note = `I could not reach the configured model (${error.message}). Continuing with the canvas-aware assistant.\n\n`
       full = note + fallback
@@ -706,11 +867,11 @@ export function registerAiRoutes(app) {
     }
 
     await pool.query(
-      `INSERT INTO ai_messages (id, conversation_id, role, text) VALUES (?,?,?,?)`,
-      [assistantId, convoId, 'assistant', full],
+      `INSERT INTO ai_messages (id, conversation_id, role, text, trace_json) VALUES (?,?,?,?,?)`,
+      [assistantId, convoId, 'assistant', full, JSON.stringify(infoPath)],
     )
     const artifacts = await insertArtifacts(convoId, assistantId, full)
-    writeEvent(res, { type: 'done', conversationId: convoId, messageId: assistantId, artifacts })
+    writeEvent(res, { type: 'done', conversationId: convoId, messageId: assistantId, artifacts, path: infoPath })
     res.end()
   })
 

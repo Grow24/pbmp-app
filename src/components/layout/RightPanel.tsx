@@ -3,14 +3,9 @@ import type { ReactNode } from 'react'
 import { AgentsPane } from '../ai/AgentsPane'
 import { ArtifactsPane } from '../ai/ArtifactsPane'
 import { ChatPane } from '../ai/ChatPane'
+import { HighlightPane } from '../ai/HighlightPane'
 import { ProjectsPane } from '../ai/ProjectsPane'
 import { useWorkbench } from '../../context/WorkbenchContext'
-
-const toneClass = {
-  insight: 'border-sky-200 bg-sky-50 text-sky-700',
-  risk: 'border-rose-200 bg-rose-50 text-rose-700',
-  action: 'border-amber-200 bg-amber-50 text-amber-700',
-}
 
 const tabs = [
   { id: 'chat', label: 'Chat' },
@@ -21,7 +16,7 @@ const tabs = [
 ] as const
 
 export function RightPanel() {
-  const { rightOpen, setRightOpen, rightTab, setRightTab, highlights } = useWorkbench()
+  const { rightOpen, setRightOpen, rightTab, setRightTab } = useWorkbench()
 
   if (!rightOpen) {
     return (
@@ -76,18 +71,21 @@ export function RightPanel() {
   }
 
   return (
-    <aside className="flex h-full w-full max-w-full shrink-0 flex-col border-l border-slate-200 bg-white sm:w-[420px]">
+    <aside className="flex h-full w-full min-w-0 flex-col border-l border-slate-200 bg-white">
       <div className="flex h-10 items-center justify-between border-b border-slate-200 px-3">
-        <span className="text-[13px] font-medium text-slate-800">
-          {rightTab === 'chat'
-            ? 'Conversation'
-            : rightTab === 'projects'
-              ? 'Projects'
-              : rightTab === 'artifacts'
-                ? 'Artifacts'
-                : rightTab === 'agents'
-                  ? 'Agents'
-                  : 'Highlights'}
+        <span className="min-w-0">
+          <span className="block text-[13px] font-medium text-slate-800">
+            {rightTab === 'chat'
+              ? 'Conversation'
+              : rightTab === 'projects'
+                ? 'Projects'
+                : rightTab === 'artifacts'
+                  ? 'Artifacts'
+                  : rightTab === 'agents'
+                    ? 'Agents'
+                    : 'Highlights'}
+          </span>
+          <span className="block text-[10px] text-slate-400">Drag the left edge to resize</span>
         </span>
         <button
           type="button"
@@ -118,27 +116,7 @@ export function RightPanel() {
       {rightTab === 'projects' && <ProjectsPane />}
       {rightTab === 'artifacts' && <ArtifactsPane />}
       {rightTab === 'agents' && <AgentsPane />}
-      {rightTab === 'highlight' && (
-        <div className="flex-1 space-y-2 overflow-y-auto p-3">
-          {highlights.length ? (
-            highlights.map((item) => (
-              <article key={item.id} className="ui-card p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${toneClass[item.tone]}`}>
-                    {item.tone}
-                  </span>
-                  <span className="text-[11px] text-slate-400">{item.time}</span>
-                </div>
-                <h3 className="mt-2 text-[13px] font-medium text-slate-900">{item.title}</h3>
-                <p className="mt-1 text-[13px] leading-relaxed text-slate-600">{item.note}</p>
-                <p className="mt-2 text-[11px] text-slate-400">{item.author}</p>
-              </article>
-            ))
-          ) : (
-            <p className="text-[13px] text-slate-500">No highlights yet. Tag someone with @Priya Shah in chat to post one.</p>
-          )}
-        </div>
-      )}
+      {rightTab === 'highlight' && <HighlightPane />}
     </aside>
   )
 }

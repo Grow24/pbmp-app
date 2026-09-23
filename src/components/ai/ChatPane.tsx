@@ -1,13 +1,15 @@
-import { Copy, GitFork, ImagePlus, Mic, MicOff, Pin, Plus, RefreshCw, Send, Volume2 } from 'lucide-react'
-import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type ReactNode } from 'react'
+import { AtSign, Copy, GitFork, ImagePlus, Mic, MicOff, Pin, Plus, RefreshCw, Send, Volume2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type ReactNode } from 'react'
 import { beginImageAttach, type DraftImage } from '../../ai/images'
+import { filterTeam, insertMentionTrigger, mentionQuery, mentionsInText } from '../../ai/mentions'
+import { InfoPathView } from './InfoPath'
 import { MarkdownView } from '../../ai/markdown'
 import { speakText, startBrowserStt, stopSpeaking } from '../../ai/speech'
 import { useAi } from '../../context/AiContext'
 import { useWorkbench } from '../../context/WorkbenchContext'
 
 export function ChatPane() {
-  const { canvas, settings } = useWorkbench()
+  const { canvas, settings, setRightTab } = useWorkbench()
   const {
     status,
     prefs,
@@ -29,6 +31,8 @@ export function ChatPane() {
     agentSlug,
     setAgent,
     team,
+    lastTagged,
+    clearLastTagged,
   } = useAi()
   const [draft, setDraft] = useState('')
   const [image, setImage] = useState<DraftImage | null>(null)
@@ -39,6 +43,9 @@ export function ChatPane() {
   const fileRef = useRef<HTMLInputElement>(null)
   const recRef = useRef<{ stop: () => void } | null>(null)
   const sendTimer = useRef<number>(0)
+  const taggedNow = useMemo(() => mentionsInText(draft, team), [draft, team])
+  const query = mentionQuery(draft)
+  const mentionMatches = filterTeam(team, query || '')
 
   const visible = messages.length
     ? messages
@@ -86,6 +93,7 @@ export function ChatPane() {
     const replaceId = editId
     setDraft('')
     setEditId(null)
+    setMentionOpen(false)
     void (async () => {
       const dataUrl = pending ? pending.dataUrl || (await pending.ready) : ''
       await sendMessage(text, pending ? { name: pending.name, dataUrl } : undefined, replaceId || undefined)
@@ -206,6 +214,7 @@ export function ChatPane() {
           <button
             key={agent.slug}
             type="button"
+            title={`${agent.role}${agent.useWhen ? ` — ${agent.useWhen}` : ''}`}
             onClick={() => void setAgent(agent.slug)}
             className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${
               agent.slug === agentSlug ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500'
@@ -215,12 +224,17 @@ export function ChatPane() {
           </button>
         ))}
       </div>
+      {agents.find((item) => item.slug === agentSlug)?.role ? (
+        <p className="border-b border-slate-100 px-3 py-1 text-[10px] text-slate-500">
+          {agents.find((item) => item.slug === agentSlug)?.name}: {agents.find((item) => item.slug === agentSlug)?.role}. Hover a chip or open Agents for when to use each.
+        </p>
+      ) : null}
 
       <div ref={scroller} className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
         {visible.map((message) => (
           <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
-              className={`max-w-[94%] rounded px-3 py-2 ${
+              className={`max-w-[94%] rounded ${prefs.compactChat ? 'px-2 py-1' : 'px-3 py-2'} ${
                 message.role === 'user' ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-700'
               }`}
             >
@@ -232,7 +246,10 @@ export function ChatPane() {
                 />
               )}
               {message.role === 'assistant' ? (
-                <MarkdownView text={message.text} />
+                <>
+                  <MarkdownView text={message.text} />
+                  <InfoPathView path={message.path} welcome={message.id === 'welcome'} />
+                </>
               ) : (
                 <p className="text-[13px] leading-relaxed">
                   {message.text.split(/(@[A-Za-z][A-Za-z .]+)/g).map((part, index) =>
@@ -281,6 +298,29 @@ export function ChatPane() {
         {error && <p className="text-[11px] text-rose-600">{error}</p>}
       </div>
 
+      {lastTagged.length ? (
+        <div className="flex items-start justify-between gap-2 border-t border-sky-100 bg-sky-50 px-3 py-2 text-[11px] text-sky-900">
+          <p>
+            Tagged {lastTagged.map((person) => person.name).join(', ')}. This is not email — a Highlight was posted for them in this workbench.
+          </p>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              className="font-medium underline"
+              onClick={() => {
+                setRightTab('highlight')
+                clearLastTagged()
+              }}
+            >
+              Open Highlight
+            </button>
+            <button type="button" onClick={() => clearLastTagged()}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {quote && (
         <div className="flex items-start justify-between gap-2 border-t border-amber-100 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800">
           <span className="line-clamp-2">Quote: {quote}</span>
@@ -327,31 +367,43 @@ export function ChatPane() {
           onChange={(event) => {
             const value = event.target.value
             setDraft(value)
-            setMentionOpen(value.endsWith('@') || /@[A-Za-z]*$/.test(value))
+            setMentionOpen(mentionQuery(value) !== null)
           }}
           onPaste={(event) => void onPaste(event)}
-          placeholder={editId ? 'Edit prompt and regenerate…' : 'Ask about this canvas…  @ to tag'}
+          placeholder={editId ? 'Edit prompt and regenerate…' : 'Ask about this canvas, or @ to tag a teammate…'}
           rows={3}
           className="w-full resize-none rounded border border-slate-200 px-2.5 py-2 text-[13px] outline-none placeholder:text-slate-400 focus:border-brand-500"
         />
         {mentionOpen && (
           <div className="mt-1 overflow-hidden rounded border border-slate-200 bg-white text-[12px] shadow-sm">
-            {team.map((person) => (
-              <button
-                key={person.id}
-                type="button"
-                className="flex w-full items-center justify-between px-2 py-1.5 text-left hover:bg-slate-50"
-                onClick={() => {
-                  setDraft((prev) => prev.replace(/@([A-Za-z]*)$/, `@${person.name} `))
-                  setMentionOpen(false)
-                }}
-              >
-                <span className="font-medium text-slate-800">@{person.name}</span>
-                <span className="text-slate-400">{person.role}</span>
-              </button>
-            ))}
+            <p className="border-b border-slate-100 px-2 py-1.5 text-[11px] text-slate-500">
+              Tag a teammate. Send posts a Highlight for them in this workbench — not email.
+            </p>
+            {mentionMatches.length ? (
+              mentionMatches.map((person) => (
+                <button
+                  key={person.id}
+                  type="button"
+                  className="flex w-full items-center justify-between px-2 py-1.5 text-left hover:bg-slate-50"
+                  onClick={() => {
+                    setDraft((prev) => prev.replace(/@([A-Za-z]*)$/, `@${person.name} `))
+                    setMentionOpen(false)
+                  }}
+                >
+                  <span className="font-medium text-slate-800">@{person.name}</span>
+                  <span className="text-slate-400">{person.role}</span>
+                </button>
+              ))
+            ) : (
+              <p className="px-2 py-1.5 text-slate-400">No teammate matches.</p>
+            )}
           </div>
         )}
+        {taggedNow.length ? (
+          <p className="mt-1.5 text-[11px] text-slate-500">
+            Will post to Highlight for {taggedNow.map((person) => person.name).join(', ')}.
+          </p>
+        ) : null}
         <div className="mt-2 flex items-center justify-between gap-2">
           <div className="flex items-center gap-1">
             <input
@@ -368,6 +420,17 @@ export function ChatPane() {
             />
             <button type="button" className="ui-btn h-8 w-8 px-0" title="Attach image" onClick={() => fileRef.current?.click()}>
               <ImagePlus className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              className="ui-btn h-8 w-8 px-0"
+              title="Tag a teammate — posts a Highlight, not email"
+              onClick={() => {
+                setDraft((prev) => insertMentionTrigger(prev))
+                setMentionOpen(true)
+              }}
+            >
+              <AtSign className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"

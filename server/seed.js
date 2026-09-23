@@ -22,6 +22,10 @@ const settings = [
   ['ai_long_paste', '1', 'ai', 'Convert long paste to attachment', 'text', 27],
   ['ai_clock_24h', '1', 'ai', '24-hour clock', 'text', 28],
   ['ai_week_start', '1', 'ai', 'Week starts Monday (1) or Sunday (0)', 'text', 29],
+  ['ai_theme', 'light', 'ai', 'Workbench theme', 'text', 30],
+  ['ai_layout', 'movable', 'ai', 'Canvas layout: fixed or movable', 'text', 31],
+  ['ai_startup_event', 'none', 'ai', 'Event on workspace open', 'text', 32],
+  ['ai_compact_chat', '0', 'ai', 'Compact chat bubbles', 'text', 33],
 ]
 
 export const aiSettings = settings.filter((row) => row[2] === 'ai')

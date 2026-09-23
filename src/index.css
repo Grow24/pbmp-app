@@ -63,3 +63,65 @@ textarea {
   background-image: radial-gradient(circle at 1px 1px, #e5e7eb 1px, transparent 0);
   background-size: 20px 20px;
 }
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+html[data-theme='dark'] body,
+html[data-theme='dark'] #root,
+html[data-theme='dark'] .bg-\[\#f5f7fa\] {
+  background-color: #0b1220;
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] header,
+html[data-theme='dark'] footer,
+html[data-theme='dark'] aside,
+html[data-theme='dark'] .ui-card,
+html[data-theme='dark'] .bg-white {
+  background-color: #152033 !important;
+  border-color: #334155 !important;
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .bg-slate-50,
+html[data-theme='dark'] .bg-slate-100 {
+  background-color: #1e293b !important;
+}
+
+html[data-theme='dark'] .text-slate-900,
+html[data-theme='dark'] .text-slate-800,
+html[data-theme='dark'] .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+
+html[data-theme='dark'] .text-slate-600,
+html[data-theme='dark'] .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+html[data-theme='dark'] .border-slate-200,
+html[data-theme='dark'] .border-slate-100 {
+  border-color: #334155 !important;
+}
+
+html[data-theme='slate'] body,
+html[data-theme='slate'] #root,
+html[data-theme='slate'] .bg-\[\#f5f7fa\] {
+  background-color: #dce4ee;
+}
+
+html[data-theme='warm'] body,
+html[data-theme='warm'] #root,
+html[data-theme='warm'] .bg-\[\#f5f7fa\] {
+  background-color: #f4ebe0;
+}
+
+html[data-theme='warm'] .ui-card,
+html[data-theme='warm'] header,
+html[data-theme='warm'] aside,
+html[data-theme='warm'] footer {
+  background-color: #fffaf3 !important;
+  border-color: #e8d9c4 !important;
+}

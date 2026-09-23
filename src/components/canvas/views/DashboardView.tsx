@@ -1,8 +1,11 @@
 import { GripVertical } from 'lucide-react'
+import { useAi } from '../../../context/AiContext'
 import { useWorkbench } from '../../../context/WorkbenchContext'
 
 export function DashboardView() {
   const { blocks, filterItems, reorderBlocks } = useWorkbench()
+  const { prefs } = useAi()
+  const movable = prefs.layout === 'movable'
   const kpis = blocks('dashboard').filter((item) => item.blockType === 'kpi')
   const work = filterItems(blocks('dashboard').filter((item) => item.blockType === 'work_row'))
   const sprint = blocks('dashboard').find((item) => item.blockType === 'sprint')
@@ -18,15 +21,25 @@ export function DashboardView() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
-      <p className="text-[11px] text-slate-400">Drag the handle to rearrange KPI widgets. Order is saved for everyone.</p>
+      <p className="text-[11px] text-slate-400">
+        {movable
+          ? 'Widgets are movable. Drag the handle to rearrange KPIs. Switch to Fixed in Personal preferences to lock them.'
+          : 'Widgets are fixed. Open Personal preferences and choose Movable if you want to drag KPIs.'}
+      </p>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((kpi, index) => (
           <article
             key={kpi.id}
-            draggable
-            onDragStart={(event) => event.dataTransfer.setData('text/plain', String(index))}
-            onDragOver={(event) => event.preventDefault()}
+            draggable={movable}
+            onDragStart={(event) => {
+              if (!movable) return
+              event.dataTransfer.setData('text/plain', String(index))
+            }}
+            onDragOver={(event) => {
+              if (movable) event.preventDefault()
+            }}
             onDrop={(event) => {
+              if (!movable) return
               event.preventDefault()
               moveKpi(Number(event.dataTransfer.getData('text/plain')), index)
             }}
@@ -34,7 +47,7 @@ export function DashboardView() {
           >
             <div className="flex items-start justify-between gap-2">
               <p className="text-xs text-slate-500">{kpi.title}</p>
-              <GripVertical className="h-3.5 w-3.5 cursor-grab text-slate-300" />
+              {movable ? <GripVertical className="h-3.5 w-3.5 cursor-grab text-slate-300" /> : null}
             </div>
             <div className="mt-2 flex items-end gap-1">
               <span className="text-2xl font-semibold text-slate-900">{kpi.value}</span>

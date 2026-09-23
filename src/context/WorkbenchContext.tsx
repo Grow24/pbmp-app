@@ -43,6 +43,8 @@ type WorkbenchContextValue = {
   sidebarCollapsed: boolean
   mobileNavOpen: boolean
   rightOpen: boolean
+  rightWidth: number
+  setRightWidth: (value: number) => void
   rightTab: RightTab
   search: string
   highlights: HighlightItem[]
@@ -98,6 +100,15 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [rightOpen, setRightOpen] = useState(() => window.innerWidth >= 1280)
+  const [rightWidth, setRightWidthState] = useState(() => {
+    const saved = Number(window.sessionStorage.getItem('pbmp-right-width'))
+    return saved >= 280 && saved <= 900 ? saved : 400
+  })
+  const setRightWidth = useCallback((value: number) => {
+    const next = Math.round(Math.min(900, Math.max(280, value)))
+    window.sessionStorage.setItem('pbmp-right-width', String(next))
+    setRightWidthState(next)
+  }, [])
   const [rightTab, setRightTab] = useState<RightTab>('chat')
   const [search, setSearch] = useState('')
   const [prefsOpen, setPrefsOpen] = useState(false)
@@ -200,6 +211,8 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
         author: item.subtitle || '',
         time: item.value || '',
         tone: (String(item.extra.tone || 'insight') as HighlightItem['tone']),
+        mentionId: item.extra.mention ? String(item.extra.mention) : undefined,
+        from: item.extra.from ? String(item.extra.from) : undefined,
       })),
     [data],
   )
@@ -262,6 +275,8 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       sidebarCollapsed,
       mobileNavOpen,
       rightOpen,
+      rightWidth,
+      setRightWidth,
       rightTab,
       search,
       highlights,
@@ -300,6 +315,8 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       reload,
       reorderBlocks,
       rightOpen,
+      rightWidth,
+      setRightWidth,
       rightTab,
       search,
       selectItem,

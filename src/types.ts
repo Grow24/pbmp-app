@@ -60,6 +60,8 @@ export type HighlightItem = {
   author: string
   time: string
   tone: 'insight' | 'risk' | 'action'
+  mentionId?: string
+  from?: string
 }
 
 export type ContentBlock = {

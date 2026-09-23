@@ -216,4 +216,5 @@ export async function ensureSchema() {
   await addColumn('ai_conversations', 'tab_slug', "tab_slug VARCHAR(64) NOT NULL DEFAULT ''")
   await addColumn('ai_conversations', 'subtab_slug', "subtab_slug VARCHAR(64) NOT NULL DEFAULT ''")
   await addColumn('ai_conversations', 'agent_slug', "agent_slug VARCHAR(64) NOT NULL DEFAULT 'general'")
+  await addColumn('ai_messages', 'trace_json', 'trace_json JSON NULL')
 }

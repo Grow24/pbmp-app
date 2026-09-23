@@ -1,5 +1,17 @@
 export type AiRole = 'user' | 'assistant' | 'system'
 
+export type InfoPathStep = {
+  n: number
+  title: string
+  detail: string
+}
+
+export type InfoPath = {
+  used: string
+  provider?: string
+  steps: InfoPathStep[]
+}
+
 export type AiMessage = {
   id: string
   role: AiRole
@@ -7,6 +19,7 @@ export type AiMessage = {
   imageName?: string | null
   imageData?: string | null
   createdAt?: string
+  path?: InfoPath | null
 }
 
 export type AiProject = {
@@ -36,6 +49,9 @@ export type AiAgent = {
   slug: string
   name: string
   role: string
+  useWhen?: string
+  ask?: string
+  instruction?: string
 }
 
 export type AiTeammate = {
@@ -60,6 +76,10 @@ export type AiStatus = {
   provider: string
 }
 
+export type AiTheme = 'light' | 'dark' | 'slate' | 'warm'
+export type AiLayout = 'fixed' | 'movable'
+export type AiStartupEvent = 'none' | 'open-chat' | 'quote-canvas' | 'speak-title'
+
 export type AiPrefs = {
   autoScroll: boolean
   stt: boolean
@@ -71,6 +91,10 @@ export type AiPrefs = {
   longPaste: boolean
   clock24h: boolean
   weekStart: number
+  theme: AiTheme
+  layout: AiLayout
+  startupEvent: AiStartupEvent
+  compactChat: boolean
 }
 
 export type AiImage = {

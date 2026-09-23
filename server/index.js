@@ -169,7 +169,12 @@ app.get('/api/settings', async (_req, res) => {
 app.put('/api/settings', async (req, res) => {
   const entries = req.body || {}
   for (const [key, value] of Object.entries(entries)) {
-    await pool.query('UPDATE settings SET setting_value = ? WHERE setting_key = ?', [String(value ?? ''), key])
+    await pool.query(
+      `INSERT INTO settings (setting_key, setting_value, group_name, label, input_type, sort_order)
+       VALUES (?,?, 'ai', ?, 'text', 40)
+       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+      [key, String(value ?? ''), key],
+    )
   }
   const [rows] = await pool.query('SELECT * FROM settings ORDER BY sort_order, setting_key')
   res.json(rows)

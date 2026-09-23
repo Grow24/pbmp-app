@@ -38,8 +38,14 @@ export function ArtifactsPane() {
           <div className="mb-2 flex items-center justify-between gap-2">
             <h3 className="text-[13px] font-medium text-slate-800">{activeArtifact.title}</h3>
             <div className="flex gap-1">
-              <button type="button" className="ui-btn h-7 px-2" onClick={() => setFullscreenArtifact(true)}>
+              <button
+                type="button"
+                className="ui-btn h-7 px-2"
+                title="Open larger resizable window"
+                onClick={() => setFullscreenArtifact(true)}
+              >
                 <Maximize2 className="h-3 w-3" />
+                Resize
               </button>
               <button
                 type="button"

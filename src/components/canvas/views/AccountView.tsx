@@ -29,7 +29,7 @@ export function AccountView() {
         </dl>
       </div>
       <div className="ui-card p-5">
-        <h3 className="mb-3 text-sm font-semibold text-slate-900">Conversation & speech</h3>
+        <h3 className="mb-3 text-sm font-semibold text-slate-900">Personal preferences</h3>
         <PrefsForm />
       </div>
     </div>

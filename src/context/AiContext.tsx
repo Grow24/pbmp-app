@@ -8,8 +8,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { prefsFromSettings, prefsToSettings } from '../ai/prefs'
-import type { AiAgent, AiArtifact, AiConversation, AiMessage, AiPrefs, AiProject, AiStatus, AiTeammate } from '../ai/types'
+import { applyTheme, prefsFromSettings, prefsToSettings } from '../ai/prefs'
+import { speakText } from '../ai/speech'
+import type { AiAgent, AiArtifact, AiConversation, AiMessage, AiPrefs, AiProject, AiStartupEvent, AiStatus, AiTeammate, InfoPath } from '../ai/types'
 import { PBMP_AGENTS, PBMP_TEAM } from '../ai/catalog'
 import { aiApi, type ChatContextPayload } from '../lib/aiApi'
 import { api } from '../lib/api'
@@ -54,6 +55,9 @@ type AiContextValue = {
   agentSlug: string
   setAgent: (slug: string) => Promise<void>
   binding: string
+  lastTagged: AiTeammate[]
+  clearLastTagged: () => void
+  runWorkspaceEvent: (event?: AiStartupEvent) => void
 }
 
 const AiContext = createContext<AiContextValue | null>(null)
@@ -101,6 +105,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
   const [agents, setAgents] = useState<AiAgent[]>([...PBMP_AGENTS])
   const [team, setTeam] = useState<AiTeammate[]>([...PBMP_TEAM])
   const [agentSlug, setAgentSlug] = useState('general')
+  const [lastTagged, setLastTagged] = useState<AiTeammate[]>([])
   const conversationRef = useRef<AiConversation | null>(null)
   conversationRef.current = conversation
 
@@ -270,7 +275,9 @@ export function AiProvider({ children }: { children: ReactNode }) {
         ]
       })
 
-      const mentioned = team.filter((person) => quoted.toLowerCase().includes(`@${person.name.toLowerCase()}`)).map((person) => person.id)
+      const taggedPeople = team.filter((person) => quoted.toLowerCase().includes(`@${person.name.toLowerCase()}`))
+      const mentioned = taggedPeople.map((person) => person.id)
+      setLastTagged(taggedPeople)
       const context: ChatContextPayload = {
         title: canvas?.title,
         description: canvas?.description,
@@ -325,6 +332,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
               conversationId?: string
               messageId?: string
               artifacts?: AiArtifact[]
+              path?: InfoPath
             }
             if (event.type === 'meta') {
               liveId = event.messageId || liveId
@@ -337,6 +345,12 @@ export function AiProvider({ children }: { children: ReactNode }) {
                 })
               }
             }
+            if (event.type === 'path' && event.path) {
+              const target = liveId
+              setMessages((prev) =>
+                prev.map((item) => (item.id === target || item.id === assistantId ? { ...item, id: target, path: event.path } : item)),
+              )
+            }
             if (event.type === 'delta' && event.text) {
               const target = liveId
               setMessages((prev) =>
@@ -344,6 +358,12 @@ export function AiProvider({ children }: { children: ReactNode }) {
               )
             }
             if (event.type === 'done') {
+              if (event.path) {
+                const target = liveId
+                setMessages((prev) =>
+                  prev.map((item) => (item.id === target || item.id === assistantId ? { ...item, id: target, path: event.path } : item)),
+                )
+              }
               if (event.artifacts) {
                 setArtifacts((prev) => {
                   const ids = new Set(prev.map((item) => item.id))
@@ -424,11 +444,44 @@ export function AiProvider({ children }: { children: ReactNode }) {
 
   const savePrefs = useCallback(
     async (next: AiPrefs) => {
+      applyTheme(next.theme)
       await api.saveSettings(prefsToSettings(next))
       await reload()
     },
     [reload],
   )
+
+  const runWorkspaceEvent = useCallback(
+    (event: AiStartupEvent = prefs.startupEvent) => {
+      if (event === 'none') return
+      if (event === 'open-chat') {
+        setRightTab('chat')
+        setRightOpen(true)
+        return
+      }
+      if (event === 'quote-canvas') {
+        setQuote([canvas?.title, canvas?.description, activeTab?.label].filter(Boolean).join(' — '))
+        setRightTab('chat')
+        setRightOpen(true)
+        return
+      }
+      if (event === 'speak-title') {
+        speakText([canvas?.title, activeTab?.label].filter(Boolean).join('. '), prefs.speechLang)
+      }
+    },
+    [activeTab?.label, canvas?.description, canvas?.title, prefs.speechLang, prefs.startupEvent, setRightOpen, setRightTab],
+  )
+
+  useEffect(() => {
+    applyTheme(prefs.theme)
+  }, [prefs.theme])
+
+  const startedEvent = useRef(false)
+  useEffect(() => {
+    if (startedEvent.current || !selectedId) return
+    startedEvent.current = true
+    runWorkspaceEvent(prefs.startupEvent)
+  }, [prefs.startupEvent, runWorkspaceEvent, selectedId])
 
   const value = useMemo<AiContextValue>(
     () => ({
@@ -470,6 +523,9 @@ export function AiProvider({ children }: { children: ReactNode }) {
       agentSlug,
       setAgent,
       binding,
+      lastTagged,
+      clearLastTagged: () => setLastTagged([]),
+      runWorkspaceEvent,
     }),
     [
       activeArtifact,
@@ -485,6 +541,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
       error,
       forkConversation,
       keepChat,
+      lastTagged,
       fullscreenArtifact,
       loadWorkspace,
       messages,
@@ -495,6 +552,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
       project,
       projects,
       quote,
+      runWorkspaceEvent,
       saveArtifact,
       savePrefs,
       searchConversations,
