@@ -1,5 +1,6 @@
 import { MarkdownView } from '../../ai/markdown'
 import type { AiArtifact } from '../../ai/types'
+import { EChartView } from './EChartView'
 
 function mermaidSrc(body: string) {
   try {
@@ -26,6 +27,15 @@ export function ArtifactPreview({ artifact }: { artifact: AiArtifact }) {
             className="max-h-[420px] w-full rounded border border-slate-200 bg-white object-contain"
           />
         )}
+        <pre className="overflow-x-auto rounded bg-slate-50 p-2 text-[11px] text-slate-600">{artifact.body}</pre>
+      </div>
+    )
+  }
+
+  if (artifact.kind === 'echarts' || artifact.kind === 'echart') {
+    return (
+      <div className="space-y-2">
+        <EChartView optionJson={artifact.body} />
         <pre className="overflow-x-auto rounded bg-slate-50 p-2 text-[11px] text-slate-600">{artifact.body}</pre>
       </div>
     )

@@ -1,3 +1,4 @@
+import { ArtifactPreview } from '../../ai/ArtifactPreview'
 import { useWorkbench } from '../../../context/WorkbenchContext'
 
 export function DocView() {
@@ -32,7 +33,19 @@ export function DocView() {
           <section key={section.id} className="rounded border border-brand-100 bg-brand-50/40 p-3">
             <p className="text-[10px] uppercase tracking-wide text-brand-600">Saved from conversation</p>
             <h3 className="text-base font-semibold text-slate-900">{section.title}</h3>
-            {section.body && <pre className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">{section.body}</pre>}
+            <div className="mt-2">
+              <ArtifactPreview
+                artifact={{
+                  id: String(section.id),
+                  conversationId: '',
+                  messageId: '',
+                  kind: String(section.value || (typeof section.extra.kind === 'string' ? section.extra.kind : 'markdown')),
+                  title: section.title || 'Saved artifact',
+                  body: section.body || '',
+                  savedContentId: section.id,
+                }}
+              />
+            </div>
           </section>
         ))}
       </div>

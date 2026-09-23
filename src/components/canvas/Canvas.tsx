@@ -179,7 +179,7 @@ export function Canvas() {
                   {item.title}
                 </span>
               ))}
-              {!uniqueSaved.length && <span className="text-[12px] text-slate-400">Nothing saved yet — generate a report or diagram, then Save to canvas.</span>}
+              {!uniqueSaved.length && <span className="text-[12px] text-slate-400">Nothing saved yet — generate a report, diagram, or EChart, then Save to canvas.</span>}
             </div>
           </div>
         )}

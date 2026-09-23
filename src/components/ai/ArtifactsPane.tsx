@@ -8,7 +8,7 @@ export function ArtifactsPane() {
   if (!artifacts.length) {
     return (
       <div className="p-4 text-[13px] leading-relaxed text-slate-500">
-        Ask for a board summary or a process diagram in Chat. Generated reports and Mermaid diagrams will appear here, then you can save them onto the open PBMP canvas.
+        Ask in Chat for a board summary, a process diagram, or an EChart (bar, pie, line, radar, funnel, gauge, scatter, heatmap). Live charts and Mermaid diagrams appear here — then Resize or Save to canvas.
       </div>
     )
   }

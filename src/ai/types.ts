@@ -64,7 +64,7 @@ export type AiArtifact = {
   id: string
   conversationId: string
   messageId: string
-  kind: 'markdown' | 'mermaid' | 'html' | 'svg' | string
+  kind: 'markdown' | 'mermaid' | 'html' | 'svg' | 'echarts' | string
   title: string
   body: string
   savedContentId: number | null

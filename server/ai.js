@@ -236,10 +236,25 @@ function mapArtifact(row) {
   }
 }
 
+function echartsTitle(body, fallback = 'EChart') {
+  try {
+    const option = JSON.parse(body)
+    const text = option?.title?.text || option?.series?.[0]?.name
+    const type = option?.series?.[0]?.type
+    if (text && type) return `EChart · ${type} — ${String(text).slice(0, 60)}`
+    if (text) return String(text).slice(0, 80)
+    if (type) return `EChart · ${type}`
+  } catch {
+    /* ignore */
+  }
+  return fallback
+}
+
 function parseArtifacts(text) {
   const artifacts = []
   const fences = [
     { kind: 'mermaid', re: /```mermaid\s*\n([\s\S]*?)```/gi, title: 'Process diagram' },
+    { kind: 'echarts', re: /```(?:echarts|echart)\s*\n([\s\S]*?)```/gi, title: 'EChart' },
     { kind: 'html', re: /```html\s*\n([\s\S]*?)```/gi, title: 'Generated page' },
     { kind: 'svg', re: /```svg\s*\n([\s\S]*?)```/gi, title: 'SVG graphic' },
   ]
@@ -247,10 +262,11 @@ function parseArtifacts(text) {
     let match
     const re = new RegExp(fence.re.source, fence.re.flags)
     while ((match = re.exec(text))) {
+      const body = match[1].trim()
       artifacts.push({
         kind: fence.kind,
-        title: fence.title,
-        body: match[1].trim(),
+        title: fence.kind === 'echarts' ? echartsTitle(body) : fence.title,
+        body,
       })
     }
   }
@@ -411,6 +427,160 @@ function wantsReport(text) {
   return /report|board summary|executive|write up|write-up|document|markdown/i.test(text)
 }
 
+function wantsChart(text) {
+  if (/echart|e-chart/i.test(text)) return true
+  if (wantsDiagram(text) && !/chart|pie|bar|radar|funnel|gauge|heatmap|scatter/i.test(text)) return false
+  return /chart|plot|visuali[sz]e|\bpie\b|\bbar\b|line chart|radar|funnel|gauge|heatmap|scatter|donut|doughnut/i.test(text)
+}
+
+function requestedChartTypes(text) {
+  const found = []
+  if (/pie|donut|doughnut/i.test(text)) found.push('pie')
+  if (/line|trend/i.test(text)) found.push('line')
+  if (/radar/i.test(text)) found.push('radar')
+  if (/funnel/i.test(text)) found.push('funnel')
+  if (/gauge/i.test(text)) found.push('gauge')
+  if (/scatter/i.test(text)) found.push('scatter')
+  if (/heatmap/i.test(text)) found.push('heatmap')
+  if (/\bbar\b|column/i.test(text)) found.push('bar')
+  if (found.length) return found
+  return ['bar', 'pie', 'radar']
+}
+
+function numericRows(blocks) {
+  const rows = []
+  for (const block of blocks) {
+    const raw = block.value ?? ''
+    const num = Number.parseFloat(String(raw).replace(/[^\d.-]/g, ''))
+    if (block.title && Number.isFinite(num) && /\d/.test(String(raw))) {
+      rows.push({ name: String(block.title).slice(0, 40), value: num })
+    }
+  }
+  return rows.slice(0, 12)
+}
+
+function fallbackChartRows(title, blocks) {
+  const named = blocks
+    .filter((block) => block.title)
+    .slice(0, 5)
+    .map((block, index) => ({ name: String(block.title).slice(0, 40), value: 80 - index * 8 }))
+  if (named.length) return named
+  return [
+    { name: title.slice(0, 24) || 'Workspace', value: 68 },
+    { name: 'Intake', value: 72 },
+    { name: 'Decide', value: 55 },
+    { name: 'Deliver', value: 61 },
+    { name: 'Measure', value: 48 },
+  ]
+}
+
+function echartsOption(type, canvasTitle, rows) {
+  const names = rows.map((row) => row.name)
+  const values = rows.map((row) => row.value)
+  const heading = `${canvasTitle} · ${type}`
+  const max = Math.max(100, ...values, 1)
+
+  if (type === 'pie') {
+    return {
+      title: { text: heading, left: 'center' },
+      tooltip: { trigger: 'item' },
+      legend: { bottom: 0 },
+      series: [{ type: 'pie', radius: ['28%', '62%'], data: rows }],
+    }
+  }
+  if (type === 'line') {
+    return {
+      title: { text: heading },
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'category', data: names },
+      yAxis: { type: 'value' },
+      series: [{ type: 'line', name: canvasTitle, data: values, smooth: true }],
+    }
+  }
+  if (type === 'radar') {
+    return {
+      title: { text: heading },
+      tooltip: {},
+      radar: { indicator: rows.map((row) => ({ name: row.name, max })) },
+      series: [{ type: 'radar', data: [{ value: values, name: canvasTitle }] }],
+    }
+  }
+  if (type === 'funnel') {
+    return {
+      title: { text: heading },
+      tooltip: { trigger: 'item' },
+      series: [{ type: 'funnel', left: '10%', width: '80%', data: [...rows].sort((a, b) => b.value - a.value) }],
+    }
+  }
+  if (type === 'gauge') {
+    const first = rows[0] || { name: canvasTitle, value: 0 }
+    return {
+      title: { text: heading },
+      series: [
+        {
+          type: 'gauge',
+          progress: { show: true },
+          detail: { formatter: '{value}' },
+          data: [{ value: first.value, name: first.name }],
+        },
+      ],
+    }
+  }
+  if (type === 'scatter') {
+    return {
+      title: { text: heading },
+      tooltip: { trigger: 'item' },
+      xAxis: { type: 'value', name: 'Item' },
+      yAxis: { type: 'value', name: 'Score' },
+      series: [{ type: 'scatter', name: canvasTitle, data: rows.map((row, index) => [index + 1, row.value]) }],
+    }
+  }
+  if (type === 'heatmap') {
+    return {
+      title: { text: heading },
+      tooltip: {},
+      grid: { top: 60, bottom: 40 },
+      xAxis: { type: 'category', data: names },
+      yAxis: { type: 'category', data: ['Score'] },
+      visualMap: { min: 0, max, calculable: true, orient: 'horizontal', left: 'center', bottom: 0 },
+      series: [{ type: 'heatmap', data: names.map((_, index) => [index, 0, values[index]]) }],
+    }
+  }
+  return {
+    title: { text: heading },
+    tooltip: { trigger: 'axis' },
+    xAxis: { type: 'category', data: names, axisLabel: { rotate: names.some((name) => name.length > 10) ? 28 : 0 } },
+    yAxis: { type: 'value' },
+    series: [{ type: 'bar', name: canvasTitle, data: values, itemStyle: { color: '#2563eb' } }],
+  }
+}
+
+function localChartReply({ title, view, blocks, imageLine, message }) {
+  const rows = numericRows(blocks)
+  const data = rows.length ? rows : fallbackChartRows(title, blocks)
+  const types = requestedChartTypes(message)
+  const fences = types
+    .map((type) => {
+      const option = echartsOption(type, title, data)
+      return `\`\`\`echarts\n${JSON.stringify(option, null, 2)}\n\`\`\``
+    })
+    .join('\n\n')
+  const source = rows.length
+    ? `Numbers come from the open **${view}** canvas (${data.map((row) => row.name).join(', ')}).`
+    : `The open canvas had few numeric values, so this chart uses titled blocks from **${title}** as a stand-in.`
+  return [
+    imageLine,
+    `Here ${types.length === 1 ? 'is an EChart' : 'are ECharts'} for **${title}** (${types.join(', ')}).`,
+    source,
+    '',
+    fences,
+    '',
+    'They open in **Artifacts** the same way Mermaid diagrams do — use **Resize** or **Save to canvas**. Ask for bar, pie, line, radar, funnel, gauge, scatter or heatmap for a specific type.',
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
 function localAssistantReply({ message, context, imageName }) {
   const title = context.title || 'this canvas'
   const view = context.tab || context.viewKind || 'current view'
@@ -448,9 +618,12 @@ function localAssistantReply({ message, context, imageName }) {
     'Review the findings on this canvas, then save this artifact into the Strategy Doc / current view so the team shares one source of truth.',
   ].join('\n')
 
-  if (wantsDiagram(message) && wantsReport(message)) return `${report}\n\n---\n\n${diagram}`
-  if (wantsDiagram(message)) return diagram
-  if (wantsReport(message)) return report
+  const chart = localChartReply({ title, view, blocks, imageLine, message })
+  const parts = []
+  if (wantsReport(message)) parts.push(report)
+  if (wantsDiagram(message)) parts.push(diagram)
+  if (wantsChart(message)) parts.push(chart)
+  if (parts.length) return parts.join('\n\n---\n\n')
 
   const highlights = [...alerts, ...capabilities, ...blocks]
     .filter((block) => block.title || block.body || block.value)
@@ -461,11 +634,11 @@ function localAssistantReply({ message, context, imageName }) {
     imageLine,
     `Looking at **${title}** · ${view}.`,
     '',
-    highlights.length ? `What the open canvas already shows:\n${highlights.join('\n')}` : 'I have the workspace context and can draft a report, diagram, or walk the current facts.',
+    highlights.length ? `What the open canvas already shows:\n${highlights.join('\n')}` : 'I have the workspace context and can draft a report, diagram, chart, or walk the current facts.',
     '',
     `You asked: “${message.slice(0, 280)}”`,
     '',
-    'I can turn this into a board summary or a Mermaid process map — ask for either, then save the artifact back into PBMP.',
+    'I can turn this into a board summary, a Mermaid process map, or an EChart (bar, pie, line, radar, funnel, gauge, scatter, heatmap) — ask for any, then save the artifact back into PBMP.',
   ]
     .filter(Boolean)
     .join('\n')
@@ -515,6 +688,7 @@ function buildModelMessages({ history, context, message, imageData }) {
     'Ground every answer in the provided canvas context. Do not invent clients or KPIs that are not in context.',
     'When asked for a report, reply in Markdown with headings.',
     'When asked for a process map, flowchart or architecture diagram, include a mermaid fenced block.',
+    'When asked for a chart, EChart, bar, pie, line, radar, funnel, gauge, scatter or heatmap, include one or more ```echarts fenced blocks. Each fence must be a complete Apache ECharts option as JSON only — no comments, no functions. Use numbers from the canvas facts. The workbench renders these live in Artifacts the same way it renders mermaid.',
     'Keep everyday answers concise unless the user asks for a full write-up.',
     '',
     summarizeContext(context),
