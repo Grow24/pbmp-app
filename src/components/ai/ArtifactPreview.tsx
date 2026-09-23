@@ -1,6 +1,7 @@
 import { MarkdownView } from '../../ai/markdown'
 import type { AiArtifact } from '../../ai/types'
 import type { ContentBlock } from '../../types'
+import { EChartPanel, parsePanelSpec } from './EChartPanel'
 import { EChartView } from './EChartView'
 
 export function artifactKindOf(item: ContentBlock) {
@@ -10,7 +11,7 @@ export function artifactKindOf(item: ContentBlock) {
 export function artifactFromContent(item: ContentBlock, siblings: ContentBlock[] = []): AiArtifact {
   const kind = artifactKindOf(item)
   const othersVisual = siblings.some(
-    (row) => row.id !== item.id && /^(mermaid|echarts|echart)$/.test(artifactKindOf(row)),
+    (row) => row.id !== item.id && /^(mermaid|echarts|echart|echarts-panel)$/.test(artifactKindOf(row)),
   )
   const body =
     kind === 'markdown' && othersVisual
@@ -54,6 +55,17 @@ export function ArtifactPreview({ artifact, compact = false }: { artifact: AiArt
             className="max-h-[420px] w-full rounded border border-slate-200 bg-white object-contain"
           />
         )}
+        {!compact && (
+          <pre className="overflow-x-auto rounded bg-slate-50 p-2 text-[11px] text-slate-600">{artifact.body}</pre>
+        )}
+      </div>
+    )
+  }
+
+  if (artifact.kind === 'echarts-panel' || parsePanelSpec(artifact.body)) {
+    return (
+      <div className="space-y-2">
+        <EChartPanel specJson={artifact.body} height={compact ? 240 : 280} />
         {!compact && (
           <pre className="overflow-x-auto rounded bg-slate-50 p-2 text-[11px] text-slate-600">{artifact.body}</pre>
         )}

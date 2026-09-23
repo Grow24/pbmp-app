@@ -14,6 +14,7 @@ import type { AiAgent, AiArtifact, AiConversation, AiMessage, AiPrefs, AiProject
 import { PBMP_AGENTS, PBMP_TEAM } from '../ai/catalog'
 import { aiApi, type ChatContextPayload } from '../lib/aiApi'
 import { api } from '../lib/api'
+import { filtersForPage } from '../components/filter/scope'
 import { useWorkbench } from './WorkbenchContext'
 
 type AiContextValue = {
@@ -83,6 +84,9 @@ export function AiProvider({ children }: { children: ReactNode }) {
     viewKind,
     settings,
     blocks,
+    filterItems,
+    savedFilters,
+    activeFilterIds,
     reload,
     setRightTab,
     setRightOpen,
@@ -278,6 +282,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
       const taggedPeople = team.filter((person) => quoted.toLowerCase().includes(`@${person.name.toLowerCase()}`))
       const mentioned = taggedPeople.map((person) => person.id)
       setLastTagged(taggedPeople)
+      const onFilters = filtersForPage(savedFilters, viewKind).filter((filter) => activeFilterIds.includes(filter.id))
       const context: ChatContextPayload = {
         title: canvas?.title,
         description: canvas?.description,
@@ -286,7 +291,8 @@ export function AiProvider({ children }: { children: ReactNode }) {
         subtab: activeSubtab?.label,
         viewKind,
         agentSlug,
-        blocks: canvasBlocks(blocks()),
+        blocks: canvasBlocks(onFilters.length ? filterItems(blocks()) : blocks()),
+        filters: onFilters.map((filter) => filter.name),
       }
 
       try {
@@ -389,6 +395,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
       activeSubtab?.label,
       activeTab?.label,
       ancestors,
+      activeFilterIds,
       blocks,
       canvas?.description,
       canvas?.title,
@@ -399,6 +406,8 @@ export function AiProvider({ children }: { children: ReactNode }) {
       setRightOpen,
       setRightTab,
       viewKind,
+      filterItems,
+      savedFilters,
       tabSlug,
       subtabSlug,
       agentSlug,

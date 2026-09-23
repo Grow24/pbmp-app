@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { EChartPanel, parsePanelSpec } from '../components/ai/EChartPanel'
 import { EChartView } from '../components/ai/EChartView'
 
 function inline(text: string): ReactNode[] {
@@ -32,10 +33,15 @@ export function MarkdownView({ text }: { text: string }) {
         body.push(lines[i])
         i += 1
       }
-      if (lang === 'echarts' || lang === 'echart') {
+      if (lang === 'echarts' || lang === 'echart' || lang === 'echarts-panel') {
+        const json = body.join('\n')
         nodes.push(
           <div key={`c-${i}`} className="my-2">
-            <EChartView optionJson={body.join('\n')} height={300} />
+            {lang === 'echarts-panel' || parsePanelSpec(json) ? (
+              <EChartPanel specJson={json} height={260} />
+            ) : (
+              <EChartView optionJson={json} height={300} />
+            )}
           </div>,
         )
       } else {

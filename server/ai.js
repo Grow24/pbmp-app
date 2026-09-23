@@ -246,12 +246,25 @@ function parseEchartsOption(body) {
   try {
     const option = JSON.parse(normalizeEchartsBody(body))
     if (!option || typeof option !== 'object' || Array.isArray(option)) return null
+    if (Array.isArray(option.charts)) return null
     const series = option.series
     if (Array.isArray(series) ? series.length > 0 : Boolean(series && series.type)) return option
   } catch {
     /* ignore */
   }
   return null
+}
+
+function parseEchartsPanel(body) {
+  try {
+    const data = JSON.parse(normalizeEchartsBody(body))
+    const charts = data?.charts
+    if (!Array.isArray(charts) || !charts.length) return null
+    if (!charts.some((item) => item && item.option)) return null
+    return data
+  } catch {
+    return null
+  }
 }
 
 function echartsTitle(body, fallback = 'EChart') {
@@ -270,6 +283,7 @@ function parseArtifacts(text) {
   const seen = new Set()
   const fences = [
     { kind: 'mermaid', re: /```mermaid\s*\n([\s\S]*?)```/gi, title: 'Process diagram' },
+    { kind: 'echarts-panel', re: /```(?:echarts-panel|echart-panel)\s*\n([\s\S]*?)```/gi, title: 'EChart panel' },
     { kind: 'echarts', re: /```(?:echarts|echart)\s*\n([\s\S]*?)```/gi, title: 'EChart' },
     { kind: 'json', re: /```json\s*\n([\s\S]*?)```/gi, title: 'EChart' },
     { kind: 'html', re: /```html\s*\n([\s\S]*?)```/gi, title: 'Generated page' },
@@ -281,15 +295,17 @@ function parseArtifacts(text) {
     while ((match = re.exec(text))) {
       const raw = match[1].trim()
       if (!raw) continue
-      if (fence.kind === 'json' && !parseEchartsOption(raw)) continue
-      const kind = fence.kind === 'json' ? 'echarts' : fence.kind
-      const body = kind === 'echarts' ? normalizeEchartsBody(raw) : raw
+      const panel = parseEchartsPanel(raw)
+      if (fence.kind === 'json' && !panel && !parseEchartsOption(raw)) continue
+      const kind = panel ? 'echarts-panel' : fence.kind === 'json' ? 'echarts' : fence.kind
+      const body = kind === 'echarts' || kind === 'echarts-panel' ? normalizeEchartsBody(raw) : raw
       const key = `${kind}:${body}`
       if (seen.has(key)) continue
       seen.add(key)
+      const panelTitle = panel?.title || (panel ? `EChart panel · ${panel.charts.length} charts` : '')
       artifacts.push({
         kind,
-        title: kind === 'echarts' ? echartsTitle(body) : fence.title,
+        title: kind === 'echarts-panel' ? panelTitle : kind === 'echarts' ? echartsTitle(body) : fence.title,
         body,
       })
     }
@@ -438,6 +454,9 @@ function summarizeContext(context = {}) {
     context.tab ? `Tab: ${context.tab}${context.subtab ? ` / ${context.subtab}` : ''}` : '',
     context.viewKind ? `View: ${context.viewKind}` : '',
     context.description ? `Description: ${context.description}` : '',
+    Array.isArray(context.filters) && context.filters.length
+      ? `Active page filters: ${context.filters.join(', ')}. Use only the remaining canvas facts after these filters.`
+      : '',
     facts ? `Current canvas facts:\n${facts}` : 'No structured canvas facts were provided.',
   ]
     .filter(Boolean)
@@ -452,8 +471,13 @@ function wantsReport(text) {
   return /report|board summary|executive|write up|write-up|document|markdown/i.test(text)
 }
 
+function wantsPanel(text) {
+  return /\bpanel\b|dashboard chart|multi(?:ple)?\s+(?:chart|echart)/i.test(text)
+}
+
 function wantsChart(text) {
   if (/echart|e-chart/i.test(text)) return true
+  if (wantsPanel(text)) return true
   if (/\b(?:bar|pie|line|radar|funnel|gauge|heatmap|scatter|donut|doughnut|column)\s+(?:charts?|graphs?|plots?)\b/i.test(text)) {
     return true
   }
@@ -593,27 +617,45 @@ function echartsOption(type, canvasTitle, rows, message = '') {
   }
 }
 
-function localChartReply({ title, view, blocks, imageLine, message }) {
+function localChartReply({ title, view, blocks, imageLine, message, filters = [] }) {
   const rows = numericRows(blocks)
   const data = rows.length ? rows : fallbackChartRows(title, blocks)
   const types = requestedChartTypes(message)
-  const fences = types
-    .map((type) => {
-      const option = echartsOption(type, title, data, message)
-      return `\`\`\`echarts\n${JSON.stringify(option, null, 2)}\n\`\`\``
-    })
-    .join('\n\n')
+  const usePanel = wantsPanel(message) || types.length > 1
+  const fences = usePanel
+    ? `\`\`\`echarts-panel\n${JSON.stringify(
+        {
+          panel: true,
+          title: `${title} · chart panel`,
+          charts: types.map((type) => ({
+            type,
+            title: `${type} chart`,
+            option: echartsOption(type, title, data, message),
+          })),
+        },
+        null,
+        2,
+      )}\n\`\`\``
+    : `\`\`\`echarts\n${JSON.stringify(echartsOption(types[0], title, data, message), null, 2)}\n\`\`\``
   const source = rows.length
     ? `Numbers come from the open **${view}** canvas (${data.map((row) => row.name).join(', ')}).`
     : `The open canvas had few numeric values, so this chart uses titled blocks from **${title}** as a stand-in.`
+  const filterLine = Array.isArray(filters) && filters.length
+    ? `Active filters: **${filters.join(', ')}**. Toggle them on the chart or the canvas filter bar to change the series.`
+    : 'Use the **Filters** chips on the chart (same as the canvas filter bar) to slice the series.'
   return [
     imageLine,
-    `Here ${types.length === 1 ? 'is an EChart' : 'are ECharts'} for **${title}** (${types.join(', ')}).`,
+    usePanel
+      ? `Here is an EChart **panel** for **${title}** with ${types.join(', ')} in one view.`
+      : `Here is an EChart for **${title}** (${types[0]}).`,
     source,
+    filterLine,
     '',
     fences,
     '',
-    'They open in **Artifacts** the same way Mermaid diagrams do — use **Resize** or **Save to canvas**. Ask for bar, pie, line, radar, funnel, gauge, scatter or heatmap for a specific type.',
+    usePanel
+      ? 'The panel opens in **Artifacts** as one card — multiple chart types inside a single div. Ask for a single type (pie, gauge…) if you want one chart only.'
+      : 'It opens in **Artifacts** the same way Mermaid diagrams do — use **Resize** or **Save to canvas**. Ask for a **panel** to put several types in one view.',
   ]
     .filter(Boolean)
     .join('\n')
@@ -656,7 +698,7 @@ function localAssistantReply({ message, context, imageName }) {
     'Review the findings on this canvas, then save this artifact into the Strategy Doc / current view so the team shares one source of truth.',
   ].join('\n')
 
-  const chart = localChartReply({ title, view, blocks, imageLine, message })
+  const chart = localChartReply({ title, view, blocks, imageLine, message, filters: context.filters })
   const parts = []
   if (wantsReport(message)) parts.push(report)
   if (wantsDiagram(message)) parts.push(diagram)
@@ -733,7 +775,8 @@ function buildModelMessages({ history, context, message, imageData }) {
     'Ground every answer in the provided canvas context. Do not invent clients or KPIs that are not in context.',
     'When asked for a report, reply in Markdown with headings.',
     'When asked for a process map, flowchart or architecture diagram, include a mermaid fenced block.',
-    'When asked for a chart, EChart, bar, pie, line, radar, funnel, gauge, scatter or heatmap, include one or more ```echarts fenced blocks. Each fence must be a complete Apache ECharts option as JSON only — no comments, no functions. Use numbers from the canvas facts. The workbench renders these live in Artifacts the same way it renders mermaid.',
+    'When asked for a chart, EChart, bar, pie, line, radar, funnel, gauge, scatter or heatmap, include a ```echarts fenced block (one Apache ECharts option as JSON only — no comments, no functions).',
+    'When asked for a panel, dashboard of charts, or multiple chart types together, include one ```echarts-panel fenced block: { "panel": true, "title": "...", "charts": [ { "type": "bar", "title": "Bar", "option": { ... } }, ... ] }. The workbench renders those types in one panel. Use numbers from the canvas facts after any active page filters.',
     'Keep everyday answers concise unless the user asks for a full write-up.',
     '',
     summarizeContext(context),

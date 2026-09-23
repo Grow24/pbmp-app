@@ -26,6 +26,7 @@ export type ChatContextPayload = {
   viewKind?: string
   agentSlug?: string
   blocks?: Array<{ type?: string; title?: string; subtitle?: string; value?: string; body?: string }>
+  filters?: string[]
 }
 
 async function readJson<T>(response: Response): Promise<T> {

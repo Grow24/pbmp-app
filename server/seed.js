@@ -156,8 +156,8 @@ export async function seedIfEmpty() {
       sort: item.sort,
       url: item.url,
     })),
-    { slug: 'filter', section: 'workspace', label: 'Filter', icon: 'filter', sort: 19, title: 'Saved filters', eyebrow: 'Workspace', description: 'Pin views, owners, and time ranges for the workbench.', tabs: [{ slug: 'saved', label: 'Saved views', kind: 'filter', sort: 1 }] },
-    { slug: 'strategy', section: 'workspace', label: 'Strategy', icon: 'strategy', sort: 20 },
+    { slug: 'filter', section: 'workspace', label: 'Filter', icon: 'filter', sort: 20, title: 'Saved filters', eyebrow: 'Workspace', description: 'Pin views, owners, and time ranges for the workbench.', tabs: [{ slug: 'saved', label: 'Saved views', kind: 'filter', sort: 1 }] },
+    { slug: 'strategy', section: 'workspace', label: 'Strategy', icon: 'strategy', sort: 3 },
     { slug: 'business', section: 'workspace', parent: 'strategy', label: 'Business', icon: 'business', sort: 1, title: 'Business strategy', eyebrow: 'Strategy · Business', description: 'Assess the current operating model, read the market, and lock the next-cycle strategy.', tabs: strategyTabs },
     { slug: 'marketing', section: 'workspace', parent: 'strategy', label: 'Marketing', icon: 'marketing', sort: 2, title: 'Marketing strategy', eyebrow: 'Strategy · Marketing', description: 'Demand, brand, and growth motions for the next planning cycle.', tabs: strategyTabs },
     { slug: 'sales', section: 'workspace', parent: 'strategy', label: 'Sales', icon: 'sales', sort: 3, title: 'Sales strategy', eyebrow: 'Strategy · Sales', description: 'Pipeline design, coverage, and revenue system diagnostics.', tabs: strategyTabs },
@@ -400,22 +400,22 @@ export async function syncDefaultMenu() {
 }
 
 const EXTERNAL_LINK_MENUS = [
-  { slug: 'hbmp-agentbot', label: 'HBMP AgentBot', icon: 'bot', sort: 3, url: 'https://www.grow24.ai/HBMP_AgentBot/' },
-  { slug: 'app-manager', label: 'app manager', icon: 'app', sort: 4, url: '/app-manager' },
-  { slug: 'hbmp-docs-platform', label: 'HBMP DOCS PLATFORM', icon: 'docs', sort: 5, url: 'https://www.grow24.ai/HBMP_DOCS_PLATFORM/' },
-  { slug: 'hbmp-form-manager', label: 'hbmp form manager', icon: 'form', sort: 6, url: 'https://www.grow24.ai/hbmp_form_manager/' },
-  { slug: 'hbmp-one', label: 'HBMP One', icon: 'layers', sort: 7, url: 'https://www.grow24.ai/HBMP_One/' },
-  { slug: 'image-processing', label: 'ImageProcessing', icon: 'image', sort: 8, url: 'https://www.grow24.ai/ImageProcessing/' },
-  { slug: 'openstreetmaps', label: 'OpenStreetMaps', icon: 'mappin', sort: 9, url: 'https://www.grow24.ai/OpenStreetMaps/' },
-  { slug: 'mini-builder', label: 'Mini Builder', icon: 'builder', sort: 10, url: 'https://www.grow24.ai/testing-responsiveness/' },
-  { slug: 'apify-n8n', label: 'apify n8n', icon: 'zap', sort: 11, url: 'https://apify-n8n.zeabur.app/setup' },
-  { slug: 'form-template', label: 'Form Template', icon: 'template', sort: 12, url: 'https://pbmpformtemplate.zeabur.app/' },
-  { slug: 'gcp-services', label: 'GCP Services', icon: 'cloud', sort: 13, url: 'https://pbmpgcpservices.zeabur.app/' },
-  { slug: 'gem-management', label: 'GEM Management', icon: 'gem', sort: 14, url: 'https://gemmanagement.zeabur.app/' },
-  { slug: 'product-discovery', label: 'Product Discovery', icon: 'blocks', sort: 15, url: 'https://blocklycursor.zeabur.app/' },
-  { slug: 'survey-manager', label: 'Survey Manager', icon: 'survey', sort: 16, url: 'https://hbmpform.zeabur.app/' },
-  { slug: 'soccer-ai', label: 'Soccer AI', icon: 'trophy', sort: 17, url: 'https://soccerai.zeabur.app/' },
-  { slug: 'mx-graph', label: 'mx graph', icon: 'graph', sort: 18, url: 'https://mx-graph-react.zeabur.app/' },
+  { slug: 'hbmp-agentbot', label: 'HBMP AgentBot', icon: 'bot', sort: 4, url: 'https://www.grow24.ai/HBMP_AgentBot/' },
+  { slug: 'app-manager', label: 'app manager', icon: 'app', sort: 5, url: '/app-manager' },
+  { slug: 'hbmp-docs-platform', label: 'HBMP DOCS PLATFORM', icon: 'docs', sort: 6, url: 'https://www.grow24.ai/HBMP_DOCS_PLATFORM/' },
+  { slug: 'hbmp-form-manager', label: 'hbmp form manager', icon: 'form', sort: 7, url: 'https://www.grow24.ai/hbmp_form_manager/' },
+  { slug: 'hbmp-one', label: 'HBMP One', icon: 'layers', sort: 8, url: 'https://www.grow24.ai/HBMP_One/' },
+  { slug: 'image-processing', label: 'ImageProcessing', icon: 'image', sort: 9, url: 'https://www.grow24.ai/ImageProcessing/' },
+  { slug: 'openstreetmaps', label: 'OpenStreetMaps', icon: 'mappin', sort: 10, url: 'https://www.grow24.ai/OpenStreetMaps/' },
+  { slug: 'mini-builder', label: 'Mini Builder', icon: 'builder', sort: 11, url: 'https://www.grow24.ai/testing-responsiveness/' },
+  { slug: 'apify-n8n', label: 'apify n8n', icon: 'zap', sort: 12, url: 'https://apify-n8n.zeabur.app/setup' },
+  { slug: 'form-template', label: 'Form Template', icon: 'template', sort: 13, url: 'https://pbmpformtemplate.zeabur.app/' },
+  { slug: 'gcp-services', label: 'GCP Services', icon: 'cloud', sort: 14, url: 'https://pbmpgcpservices.zeabur.app/' },
+  { slug: 'gem-management', label: 'GEM Management', icon: 'gem', sort: 15, url: 'https://gemmanagement.zeabur.app/' },
+  { slug: 'product-discovery', label: 'Product Discovery', icon: 'blocks', sort: 16, url: 'https://blocklycursor.zeabur.app/' },
+  { slug: 'survey-manager', label: 'Survey Manager', icon: 'survey', sort: 17, url: 'https://hbmpform.zeabur.app/' },
+  { slug: 'soccer-ai', label: 'Soccer AI', icon: 'trophy', sort: 18, url: 'https://soccerai.zeabur.app/' },
+  { slug: 'mx-graph', label: 'mx graph', icon: 'graph', sort: 19, url: 'https://mx-graph-react.zeabur.app/' },
 ]
 
 export async function seedAgentBotMenu() {
@@ -441,9 +441,9 @@ export async function seedAgentBotMenu() {
   }
 
   const nextSort = Math.max(...EXTERNAL_LINK_MENUS.map((item) => item.sort))
-  await pool.query("UPDATE menu_items SET sort_order = ? WHERE slug = 'filter'", [nextSort + 1])
-  await pool.query("UPDATE menu_items SET sort_order = ? WHERE slug = 'strategy'", [nextSort + 2])
   await pool.query("UPDATE menu_items SET sort_order = 2 WHERE slug = 'planning'")
+  await pool.query("UPDATE menu_items SET sort_order = 3 WHERE slug = 'strategy'")
+  await pool.query("UPDATE menu_items SET sort_order = ? WHERE slug = 'filter'", [nextSort + 1])
 }
 
 export async function seedNestedPlanningMenu() {
