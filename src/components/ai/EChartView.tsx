@@ -3,16 +3,11 @@ import * as echarts from 'echarts'
 import { fieldIdsForPage } from '../filter/catalog'
 import { filtersForPage } from '../filter/scope'
 import { useWorkbench } from '../../context/WorkbenchContext'
+import { parseEchartsOptionJson } from '../../ai/echartsJson'
 import { filterEchartsOption } from './filterEcharts'
 
 function parseOption(body: string): echarts.EChartsOption | null {
-  try {
-    const option = JSON.parse(body) as echarts.EChartsOption
-    if (!option || typeof option !== 'object' || Array.isArray(option)) return null
-    return option
-  } catch {
-    return null
-  }
+  return parseEchartsOptionJson(body) as echarts.EChartsOption | null
 }
 
 export type PanelChart = {

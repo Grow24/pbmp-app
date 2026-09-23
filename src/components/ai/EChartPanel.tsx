@@ -1,22 +1,18 @@
+import { parseEchartsPanelJson } from '../../ai/echartsJson'
 import { EChartView, type PanelSpec } from './EChartView'
 
 export function parsePanelSpec(body: string): PanelSpec | null {
-  try {
-    const data = JSON.parse(body) as PanelSpec
-    if (!data || typeof data !== 'object') return null
-    const charts = Array.isArray(data.charts) ? data.charts : []
-    const usable = charts.filter((item) => item && typeof item === 'object' && item.option)
-    if (!usable.length) return null
-    return { ...data, charts: usable }
-  } catch {
-    return null
-  }
+  return parseEchartsPanelJson(body)
 }
 
 export function EChartPanel({ specJson, height = 260 }: { specJson: string; height?: number }) {
   const spec = parsePanelSpec(specJson)
   if (!spec) {
-    return <EChartView optionJson={specJson} height={height} />
+    return (
+      <p className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">
+        This chart panel could not be read. Ask again for an echart panel, or request a single type such as pie chart.
+      </p>
+    )
   }
 
   return (

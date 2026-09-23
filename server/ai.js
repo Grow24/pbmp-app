@@ -236,35 +236,126 @@ function mapArtifact(row) {
   }
 }
 
-function normalizeEchartsBody(body) {
-  const trimmed = String(body || '').trim()
-  const nested = trimmed.match(/^```(?:json|javascript|js)?\s*\n([\s\S]*?)```$/)
-  return (nested ? nested[1] : trimmed).trim()
+function stripEchartsFence(text) {
+  return String(text || '')
+    .trim()
+    .replace(/^```(?:json|javascript|js|echarts|echart|echarts-panel|echart-panel)?\s*/i, '')
+    .replace(/```$/i, '')
+    .trim()
 }
 
-function parseEchartsOption(body) {
+function cleanLooseJson(text) {
+  return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\\s])\/\/.*$/gm, '$1').replace(/,\s*([}\]])/g, '$1')
+}
+
+function sliceBalanced(text, start, open) {
+  const close = open === '{' ? '}' : ']'
+  let depth = 0
+  let inStr = false
+  let esc = false
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i]
+    if (inStr) {
+      if (esc) {
+        esc = false
+        continue
+      }
+      if (ch === '\\') {
+        esc = true
+        continue
+      }
+      if (ch === '"') inStr = false
+      continue
+    }
+    if (ch === '"') {
+      inStr = true
+      continue
+    }
+    if (ch === open) depth += 1
+    if (ch === close) {
+      depth -= 1
+      if (depth === 0) return text.slice(start, i + 1)
+    }
+  }
+  return ''
+}
+
+function tryJson(text) {
   try {
-    const option = JSON.parse(normalizeEchartsBody(body))
-    if (!option || typeof option !== 'object' || Array.isArray(option)) return null
-    if (Array.isArray(option.charts)) return null
-    const series = option.series
-    if (Array.isArray(series) ? series.length > 0 : Boolean(series && series.type)) return option
+    return JSON.parse(text)
   } catch {
-    /* ignore */
+    return undefined
+  }
+}
+
+function parseLooseJson(raw) {
+  const cleaned = cleanLooseJson(stripEchartsFence(raw))
+  const direct = tryJson(cleaned)
+  if (direct !== undefined) return direct
+  const start = cleaned.indexOf('{')
+  if (start >= 0) {
+    const sliced = sliceBalanced(cleaned, start, '{')
+    if (sliced) return tryJson(sliced)
+  }
+  return undefined
+}
+
+const CHART_TYPES = new Set(['bar', 'line', 'pie', 'radar', 'funnel', 'gauge', 'scatter', 'heatmap'])
+
+function asPanelChart(item) {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return null
+  if (item.option && typeof item.option === 'object' && !Array.isArray(item.option)) {
+    return { type: item.type, title: item.title, option: item.option }
+  }
+  if (item.series && CHART_TYPES.has(item.type)) {
+    const { type, title, ...option } = item
+    return { type, title, option }
   }
   return null
 }
 
-function parseEchartsPanel(body) {
-  try {
-    const data = JSON.parse(normalizeEchartsBody(body))
-    const charts = data?.charts
-    if (!Array.isArray(charts) || !charts.length) return null
-    if (!charts.some((item) => item && item.option)) return null
-    return data
-  } catch {
-    return null
+function recoverPanelCharts(raw) {
+  const cleaned = cleanLooseJson(stripEchartsFence(raw))
+  const charts = []
+  let cursor = 0
+  while (cursor < cleaned.length) {
+    const start = cleaned.indexOf('{', cursor)
+    if (start < 0) break
+    const sliced = sliceBalanced(cleaned, start, '{')
+    if (!sliced) {
+      cursor = start + 1
+      continue
+    }
+    const chart = asPanelChart(tryJson(sliced))
+    if (chart) charts.push(chart)
+    cursor = start + 1
   }
+  return charts
+}
+
+function normalizeEchartsBody(body) {
+  return stripEchartsFence(body)
+}
+
+function parseEchartsOption(body) {
+  const option = parseLooseJson(body)
+  if (!option || typeof option !== 'object' || Array.isArray(option)) return null
+  if (Array.isArray(option.charts)) return null
+  const series = option.series
+  if (Array.isArray(series) ? series.length > 0 : Boolean(series && series.type)) return option
+  return null
+}
+
+function parseEchartsPanel(body) {
+  const data = parseLooseJson(body)
+  if (data && typeof data === 'object' && Array.isArray(data.charts)) {
+    const charts = data.charts.map(asPanelChart).filter(Boolean)
+    if (charts.length) return { panel: true, title: data.title, charts }
+  }
+  const recovered = recoverPanelCharts(body)
+  if (!recovered.length) return null
+  const title = String(body).match(/"title"\s*:\s*"([^"]+)"/)?.[1]
+  return { panel: true, title, charts: recovered }
 }
 
 function echartsTitle(body, fallback = 'EChart') {
@@ -296,9 +387,15 @@ function parseArtifacts(text) {
       const raw = match[1].trim()
       if (!raw) continue
       const panel = parseEchartsPanel(raw)
-      if (fence.kind === 'json' && !panel && !parseEchartsOption(raw)) continue
-      const kind = panel ? 'echarts-panel' : fence.kind === 'json' ? 'echarts' : fence.kind
-      const body = kind === 'echarts' || kind === 'echarts-panel' ? normalizeEchartsBody(raw) : raw
+      const option = panel ? null : parseEchartsOption(raw)
+      if (fence.kind === 'json' && !panel && !option) continue
+      const kind = panel ? 'echarts-panel' : fence.kind === 'json' || option ? 'echarts' : fence.kind
+      if ((kind === 'echarts-panel' && !panel) || (kind === 'echarts' && !option && fence.kind !== 'echarts')) continue
+      const body = panel
+        ? JSON.stringify({ panel: true, title: panel.title || '', charts: panel.charts })
+        : option
+          ? JSON.stringify(option)
+          : normalizeEchartsBody(raw)
       const key = `${kind}:${body}`
       if (seen.has(key)) continue
       seen.add(key)
