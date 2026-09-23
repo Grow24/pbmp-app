@@ -1,3 +1,31 @@
+export type DraftImage = {
+  name: string
+  previewUrl: string
+  dataUrl: string
+  ready: Promise<string>
+  revoke: () => void
+}
+
+export function beginImageAttach(file: File, resize: boolean): DraftImage {
+  const previewUrl = URL.createObjectURL(file)
+  let settle: (url: string) => void = () => undefined
+  const ready = new Promise<string>((resolve) => {
+    settle = resolve
+  })
+  const draft: DraftImage = {
+    name: file.name || 'upload.png',
+    previewUrl,
+    dataUrl: '',
+    ready,
+    revoke: () => URL.revokeObjectURL(previewUrl),
+  }
+  void fileToDataUrl(file, resize).then((dataUrl) => {
+    draft.dataUrl = dataUrl
+    settle(dataUrl)
+  })
+  return draft
+}
+
 export async function fileToDataUrl(file: File, resize: boolean, maxEdge = 1280): Promise<string> {
   const raw = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()

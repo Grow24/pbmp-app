@@ -39,6 +39,8 @@ type AiContextValue = {
   loadWorkspace: () => Promise<void>
   selectConversation: (id: string) => Promise<void>
   newChat: (temporary?: boolean) => Promise<void>
+  keepChat: () => Promise<void>
+  discardTemp: () => Promise<void>
   moveConversation: (projectId: number) => Promise<void>
   archiveConversation: (archived: boolean) => Promise<void>
   pinConversation: () => Promise<void>
@@ -142,7 +144,21 @@ export function AiProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!selectedId) return
-    applyWorkspace().catch((err: Error) => setError(err.message))
+    const leftover = conversationRef.current
+    const leftScratch =
+      leftover?.temporary &&
+      (leftover.canvasSlug !== selectedId || leftover.tabSlug !== tabSlug || leftover.subtabSlug !== subtabSlug)
+    void (async () => {
+      if (leftScratch) {
+        await aiApi.deleteConversation(leftover.id).catch(() => undefined)
+      }
+      try {
+        await applyWorkspace()
+        setError(null)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not load AI workspace')
+      }
+    })()
   }, [selectedId, tabSlug, subtabSlug, showArchived, applyWorkspace])
 
   const selectConversation = useCallback(async (id: string) => {
@@ -162,7 +178,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
         tabSlug,
         subtabSlug,
         agentSlug,
-        title: temporary ? 'Temporary chat' : 'New conversation',
+        title: temporary ? 'Not saved' : 'New conversation',
         temporary,
       })
       setConversation(created)
@@ -174,6 +190,19 @@ export function AiProvider({ children }: { children: ReactNode }) {
     },
     [project, selectedId, tabSlug, subtabSlug, agentSlug, setRightOpen, setRightTab],
   )
+
+  const keepChat = useCallback(async () => {
+    if (!conversation?.temporary) return
+    const updated = await aiApi.patchConversation(conversation.id, { temporary: false })
+    setConversation(updated)
+    setConversations((prev) => [updated, ...prev.filter((item) => item.id !== updated.id)])
+  }, [conversation])
+
+  const discardTemp = useCallback(async () => {
+    if (!conversation?.temporary) return
+    await aiApi.deleteConversation(conversation.id).catch(() => undefined)
+    await applyWorkspace()
+  }, [applyWorkspace, conversation])
 
   const moveConversation = useCallback(
     async (projectId: number) => {
@@ -426,6 +455,8 @@ export function AiProvider({ children }: { children: ReactNode }) {
       loadWorkspace,
       selectConversation,
       newChat,
+      keepChat,
+      discardTemp,
       moveConversation,
       archiveConversation,
       pinConversation,
@@ -450,8 +481,10 @@ export function AiProvider({ children }: { children: ReactNode }) {
       conversation,
       conversations,
       createProject,
+      discardTemp,
       error,
       forkConversation,
+      keepChat,
       fullscreenArtifact,
       loadWorkspace,
       messages,

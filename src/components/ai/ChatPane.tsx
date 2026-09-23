@@ -1,6 +1,6 @@
 import { Copy, GitFork, ImagePlus, Mic, MicOff, Pin, Plus, RefreshCw, Send, Volume2 } from 'lucide-react'
 import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type ReactNode } from 'react'
-import { fileToDataUrl } from '../../ai/images'
+import { beginImageAttach, type DraftImage } from '../../ai/images'
 import { MarkdownView } from '../../ai/markdown'
 import { speakText, startBrowserStt, stopSpeaking } from '../../ai/speech'
 import { useAi } from '../../context/AiContext'
@@ -19,6 +19,8 @@ export function ChatPane() {
     quote,
     setQuote,
     newChat,
+    keepChat,
+    discardTemp,
     pinConversation,
     forkConversation,
     sendMessage,
@@ -29,7 +31,7 @@ export function ChatPane() {
     team,
   } = useAi()
   const [draft, setDraft] = useState('')
-  const [image, setImage] = useState<{ name: string; dataUrl: string } | null>(null)
+  const [image, setImage] = useState<DraftImage | null>(null)
   const [listening, setListening] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [mentionOpen, setMentionOpen] = useState(false)
@@ -49,6 +51,12 @@ export function ChatPane() {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' })
   }, [messages, streaming, prefs.autoScroll])
 
+  const imageRef = useRef<DraftImage | null>(null)
+  imageRef.current = image
+  useEffect(() => () => {
+    imageRef.current?.revoke()
+  }, [])
+
   useEffect(() => {
     const last = messages[messages.length - 1]
     if (prefs.ttsAutoplay && prefs.tts && last?.role === 'assistant' && !streaming && last.text) {
@@ -56,22 +64,41 @@ export function ChatPane() {
     }
   }, [messages, prefs.speechLang, prefs.tts, prefs.ttsAutoplay, streaming])
 
+  const clearImage = () => {
+    image?.revoke()
+    setImage(null)
+  }
+
+  const attachFile = (file: File) => {
+    image?.revoke()
+    const next = beginImageAttach(file, prefs.imageResize)
+    setImage(next)
+    void next.ready.then((dataUrl) => {
+      setImage((prev) => (prev?.previewUrl === next.previewUrl ? { ...prev, dataUrl } : prev))
+    })
+  }
+
   const submit = (event?: FormEvent) => {
     event?.preventDefault()
     const text = draft.trim()
     if (!text && !image) return
-    void sendMessage(text, image || undefined, editId || undefined)
+    const pending = image
+    const replaceId = editId
     setDraft('')
-    setImage(null)
     setEditId(null)
+    void (async () => {
+      const dataUrl = pending ? pending.dataUrl || (await pending.ready) : ''
+      await sendMessage(text, pending ? { name: pending.name, dataUrl } : undefined, replaceId || undefined)
+      pending?.revoke()
+      setImage((prev) => (prev?.previewUrl === pending?.previewUrl ? null : prev))
+    })()
   }
 
-  const onPaste = async (event: ClipboardEvent<HTMLTextAreaElement>) => {
+  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
     const file = [...event.clipboardData.files].find((item) => item.type.startsWith('image/'))
     if (file) {
       event.preventDefault()
-      const dataUrl = await fileToDataUrl(file, prefs.imageResize)
-      setImage({ name: file.name || 'pasted-image.png', dataUrl })
+      attachFile(file)
       return
     }
     const text = event.clipboardData.getData('text')
@@ -96,7 +123,12 @@ export function ChatPane() {
         window.clearTimeout(sendTimer.current)
         if (final && prefs.autoSendMs > 0) {
           sendTimer.current = window.setTimeout(() => {
-            void sendMessage(text, image || undefined)
+            const pending = image
+            void (async () => {
+              const dataUrl = pending ? pending.dataUrl || (await pending.ready) : ''
+              await sendMessage(text, pending ? { name: pending.name, dataUrl } : undefined)
+              pending?.revoke()
+            })()
             setDraft('')
             setImage(null)
           }, prefs.autoSendMs)
@@ -118,23 +150,52 @@ export function ChatPane() {
           <p className="truncate text-[11px] text-slate-400">{binding || `${project?.name || 'No project'} · ${canvas?.title || 'Canvas'}`}</p>
           <p className="truncate text-[12px] font-medium text-slate-700">
             {conversation?.title || 'New conversation for this tab'}
-            {conversation?.temporary ? ' · temp' : ''}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <button type="button" className="ui-btn h-7 px-2 text-[11px]" onClick={() => void newChat(false)} title="New chat">
+          <button
+            type="button"
+            className="ui-btn h-7 px-2 text-[11px]"
+            onClick={() => void newChat(false)}
+            title="Start a new saved chat. The previous saved chats stay in Projects."
+          >
             <Plus className="h-3 w-3" />
+            New
           </button>
-          <button type="button" className="ui-btn h-7 px-2 text-[11px]" onClick={() => void newChat(true)} title="Temporary chat">
-            Temp
+          <button
+            type="button"
+            className={`ui-btn h-7 px-2 text-[11px] ${conversation?.temporary ? 'border-amber-400 text-amber-800' : ''}`}
+            onClick={() => void newChat(true)}
+            title="Scratch chat. Not saved, and it does not replace this tab's saved history."
+          >
+            Don't save
           </button>
-          <button type="button" className="ui-btn h-7 px-2 text-[11px]" onClick={() => void pinConversation()} title="Pin">
+          <button type="button" className="ui-btn h-7 px-2 text-[11px]" onClick={() => void pinConversation()} title="Pin this saved chat">
             <Pin className={`h-3 w-3 ${conversation?.pinned ? 'text-brand-600' : ''}`} />
           </button>
         </div>
       </div>
 
+      {conversation?.temporary ? (
+        <div className="border-b border-amber-100 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+          <p className="font-medium">Not saved — scratch chat</p>
+          <p className="mt-0.5 leading-relaxed">
+            Messages stay only while this tab is open. Saved history for this canvas is unchanged. Switch menu or tab and this scratch chat is discarded.
+          </p>
+          <div className="mt-1.5 flex gap-2">
+            <button type="button" className="ui-btn h-7 px-2 text-[11px]" onClick={() => void keepChat()}>
+              Keep in history
+            </button>
+            <button type="button" className="text-[11px] text-amber-800 underline" onClick={() => void discardTemp()}>
+              Discard and show saved chat
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <p className="border-b border-slate-100 px-3 py-1.5 text-[10px] text-slate-400">
+        {conversation?.temporary ? 'Not saved' : 'Saved in Projects'}
+        {' · '}
         {status?.configured ? `Model · ${status.model}` : 'Local canvas assistant'}
         {' · '}
         {agents.find((item) => item.slug === agentSlug)?.name || 'General assistant'}
@@ -164,7 +225,11 @@ export function ChatPane() {
               }`}
             >
               {message.imageData && (
-                <img src={message.imageData} alt={message.imageName || 'upload'} className="mb-2 max-h-36 rounded" />
+                <img
+                  src={message.imageData}
+                  alt={message.imageName || 'upload'}
+                  className="mb-2 max-h-48 w-full rounded object-contain"
+                />
               )}
               {message.role === 'assistant' ? (
                 <MarkdownView text={message.text} />
@@ -226,15 +291,37 @@ export function ChatPane() {
       )}
 
       {image && (
-        <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-3 py-1.5 text-[11px]">
-          <span className="truncate text-slate-500">{image.name}</span>
-          <button type="button" className="text-rose-600" onClick={() => setImage(null)}>
-            Remove
-          </button>
+        <div className="border-t border-slate-100 px-3 py-2">
+          <div className="flex items-start gap-2">
+            <img
+              src={image.previewUrl}
+              alt={image.name}
+              className="max-h-44 max-w-[70%] rounded border border-slate-200 bg-slate-50 object-contain"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[12px] font-medium text-slate-700">{image.name}</p>
+              <p className="mt-0.5 text-[10px] text-slate-400">{image.dataUrl ? 'Ready to send' : 'Preparing…'}</p>
+              <button type="button" className="mt-2 text-[11px] text-rose-600" onClick={clearImage}>
+                Remove
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      <form onSubmit={submit} className="border-t border-slate-200 p-3">
+      <form
+        onSubmit={submit}
+        className="border-t border-slate-200 p-3"
+        onDragOver={(event) => {
+          if ([...event.dataTransfer.types].includes('Files')) event.preventDefault()
+        }}
+        onDrop={(event) => {
+          const file = [...event.dataTransfer.files].find((item) => item.type.startsWith('image/'))
+          if (!file) return
+          event.preventDefault()
+          attachFile(file)
+        }}
+      >
         <textarea
           value={draft}
           onChange={(event) => {
@@ -276,7 +363,7 @@ export function ChatPane() {
                 const file = event.target.files?.[0]
                 event.target.value = ''
                 if (!file) return
-                void fileToDataUrl(file, prefs.imageResize).then((dataUrl) => setImage({ name: file.name, dataUrl }))
+                attachFile(file)
               }}
             />
             <button type="button" className="ui-btn h-8 w-8 px-0" title="Attach image" onClick={() => fileRef.current?.click()}>

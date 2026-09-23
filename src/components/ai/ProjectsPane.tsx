@@ -26,9 +26,12 @@ export function ProjectsPane() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
-      <p className="text-[11px] uppercase tracking-wide text-slate-400">Mapped from menu</p>
+      <p className="text-[11px] uppercase tracking-wide text-slate-400">Saved history</p>
       <p className="mt-1 text-[13px] font-medium text-slate-800">{project?.name || 'No project'}</p>
       <p className="text-[11px] text-slate-500">{trail.join(' / ') || selectedId} · {project?.kind}</p>
+      <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+        Every normal chat is stored here. <span className="font-medium text-slate-700">Don't save</span> never appears in this list and never replaces these conversations.
+      </p>
 
       <label className="relative mt-3 block">
         <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
