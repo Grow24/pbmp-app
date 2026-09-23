@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useAi } from '../../context/AiContext'
 import { useWorkbench } from '../../context/WorkbenchContext'
 import { usePointerDelta } from '../../hooks/usePointerDelta'
-import { ArtifactPreview } from '../ai/ArtifactPreview'
+import { ArtifactPreview, artifactFromContent } from '../ai/ArtifactPreview'
 import { PageFilters } from '../filter/PageFilters'
 import { CanvasBody } from './CanvasBody'
 
@@ -173,14 +173,21 @@ export function Canvas() {
         {(uniqueSaved.length > 0 || artifacts.length > 0) && (
           <div className="mt-4 ui-card p-3">
             <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Saved AI artifacts on this workspace</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {uniqueSaved.map((item) => (
-                <span key={item.id} className="rounded border border-slate-200 bg-white px-2 py-1 text-[12px] text-slate-700">
-                  {item.title}
-                </span>
-              ))}
-              {!uniqueSaved.length && <span className="text-[12px] text-slate-400">Nothing saved yet — generate a report, diagram, or EChart, then Save to canvas.</span>}
-            </div>
+            {!uniqueSaved.length ? (
+              <p className="mt-2 text-[12px] text-slate-400">Nothing saved yet — generate a report, diagram, or EChart, then Save to canvas.</p>
+            ) : (
+              <div className="mt-3 space-y-3">
+                {uniqueSaved.map((item) => (
+                  <article key={item.id} className="overflow-hidden rounded border border-slate-200 bg-white p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-slate-400">
+                      {String(item.value || 'artifact')} · saved from conversation
+                    </p>
+                    <h3 className="mb-2 text-sm font-semibold text-slate-900">{item.title}</h3>
+                    <ArtifactPreview artifact={artifactFromContent(item, uniqueSaved)} compact />
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

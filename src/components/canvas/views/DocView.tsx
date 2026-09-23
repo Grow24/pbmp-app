@@ -1,4 +1,4 @@
-import { ArtifactPreview } from '../../ai/ArtifactPreview'
+import { ArtifactPreview, artifactFromContent } from '../../ai/ArtifactPreview'
 import { useWorkbench } from '../../../context/WorkbenchContext'
 
 export function DocView() {
@@ -34,17 +34,7 @@ export function DocView() {
             <p className="text-[10px] uppercase tracking-wide text-brand-600">Saved from conversation</p>
             <h3 className="text-base font-semibold text-slate-900">{section.title}</h3>
             <div className="mt-2">
-              <ArtifactPreview
-                artifact={{
-                  id: String(section.id),
-                  conversationId: '',
-                  messageId: '',
-                  kind: String(section.value || (typeof section.extra.kind === 'string' ? section.extra.kind : 'markdown')),
-                  title: section.title || 'Saved artifact',
-                  body: section.body || '',
-                  savedContentId: section.id,
-                }}
-              />
+              <ArtifactPreview artifact={artifactFromContent(section, savedAi)} compact />
             </div>
           </section>
         ))}

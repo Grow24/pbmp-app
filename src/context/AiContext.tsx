@@ -422,14 +422,22 @@ export function AiProvider({ children }: { children: ReactNode }) {
     async (id: string) => {
       const hasDoc = Boolean(canvas?.tabs.some((tab) => tab.kind === 'doc'))
       const targetKind = hasDoc ? 'doc' : viewKind
-      const result = await aiApi.saveArtifact(id, {
+      const payload = {
         menuItemId: selectedItem?.dbId ?? null,
         viewKind: targetKind,
-      })
-      setArtifacts((prev) => prev.map((item) => (item.id === id ? result.artifact : item)))
+      }
+      const clicked = artifacts.find((item) => item.id === id)
+      const batch = artifacts.filter(
+        (item) => !item.savedContentId && (item.id === id || (clicked && item.messageId === clicked.messageId)),
+      )
+      const toSave = batch.length ? batch : artifacts.filter((item) => item.id === id && !item.savedContentId)
+      for (const item of toSave) {
+        const result = await aiApi.saveArtifact(item.id, payload)
+        setArtifacts((prev) => prev.map((row) => (row.id === item.id ? result.artifact : row)))
+      }
       await reload()
     },
-    [canvas?.tabs, reload, selectedItem?.dbId, viewKind],
+    [artifacts, canvas?.tabs, reload, selectedItem?.dbId, viewKind],
   )
 
   const searchConversations = useCallback((q: string) => aiApi.search(q), [])

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { EChartView } from '../components/ai/EChartView'
 
 function inline(text: string): ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g)
@@ -31,12 +32,20 @@ export function MarkdownView({ text }: { text: string }) {
         body.push(lines[i])
         i += 1
       }
-      nodes.push(
-        <pre key={`c-${i}`} className="my-2 overflow-x-auto rounded bg-slate-900 p-3 text-[11px] text-slate-100">
-          <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-400">{lang || 'code'}</div>
-          {body.join('\n')}
-        </pre>,
-      )
+      if (lang === 'echarts' || lang === 'echart') {
+        nodes.push(
+          <div key={`c-${i}`} className="my-2">
+            <EChartView optionJson={body.join('\n')} height={300} />
+          </div>,
+        )
+      } else {
+        nodes.push(
+          <pre key={`c-${i}`} className="my-2 overflow-x-auto rounded bg-slate-900 p-3 text-[11px] text-slate-100">
+            <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-400">{lang || 'code'}</div>
+            {body.join('\n')}
+          </pre>,
+        )
+      }
       i += 1
       continue
     }

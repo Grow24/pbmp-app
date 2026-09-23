@@ -1,6 +1,33 @@
 import { MarkdownView } from '../../ai/markdown'
 import type { AiArtifact } from '../../ai/types'
+import type { ContentBlock } from '../../types'
 import { EChartView } from './EChartView'
+
+export function artifactKindOf(item: ContentBlock) {
+  return String(item.value || (typeof item.extra.kind === 'string' ? item.extra.kind : 'markdown'))
+}
+
+export function artifactFromContent(item: ContentBlock, siblings: ContentBlock[] = []): AiArtifact {
+  const kind = artifactKindOf(item)
+  const othersVisual = siblings.some(
+    (row) => row.id !== item.id && /^(mermaid|echarts|echart)$/.test(artifactKindOf(row)),
+  )
+  const body =
+    kind === 'markdown' && othersVisual
+      ? String(item.body || '')
+          .replace(/```(?:echarts|echart|mermaid)[\s\S]*?```/g, '')
+          .trim()
+      : item.body || ''
+  return {
+    id: String(item.id),
+    conversationId: '',
+    messageId: '',
+    kind,
+    title: item.title || 'Saved artifact',
+    body,
+    savedContentId: item.id,
+  }
+}
 
 function mermaidSrc(body: string) {
   try {
@@ -15,7 +42,7 @@ function mermaidSrc(body: string) {
   }
 }
 
-export function ArtifactPreview({ artifact }: { artifact: AiArtifact }) {
+export function ArtifactPreview({ artifact, compact = false }: { artifact: AiArtifact; compact?: boolean }) {
   if (artifact.kind === 'mermaid') {
     const src = mermaidSrc(artifact.body)
     return (
@@ -27,7 +54,9 @@ export function ArtifactPreview({ artifact }: { artifact: AiArtifact }) {
             className="max-h-[420px] w-full rounded border border-slate-200 bg-white object-contain"
           />
         )}
-        <pre className="overflow-x-auto rounded bg-slate-50 p-2 text-[11px] text-slate-600">{artifact.body}</pre>
+        {!compact && (
+          <pre className="overflow-x-auto rounded bg-slate-50 p-2 text-[11px] text-slate-600">{artifact.body}</pre>
+        )}
       </div>
     )
   }
@@ -36,7 +65,9 @@ export function ArtifactPreview({ artifact }: { artifact: AiArtifact }) {
     return (
       <div className="space-y-2">
         <EChartView optionJson={artifact.body} />
-        <pre className="overflow-x-auto rounded bg-slate-50 p-2 text-[11px] text-slate-600">{artifact.body}</pre>
+        {!compact && (
+          <pre className="overflow-x-auto rounded bg-slate-50 p-2 text-[11px] text-slate-600">{artifact.body}</pre>
+        )}
       </div>
     )
   }

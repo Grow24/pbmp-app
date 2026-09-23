@@ -236,25 +236,42 @@ function mapArtifact(row) {
   }
 }
 
-function echartsTitle(body, fallback = 'EChart') {
+function normalizeEchartsBody(body) {
+  const trimmed = String(body || '').trim()
+  const nested = trimmed.match(/^```(?:json|javascript|js)?\s*\n([\s\S]*?)```$/)
+  return (nested ? nested[1] : trimmed).trim()
+}
+
+function parseEchartsOption(body) {
   try {
-    const option = JSON.parse(body)
-    const text = option?.title?.text || option?.series?.[0]?.name
-    const type = option?.series?.[0]?.type
-    if (text && type) return `EChart · ${type} — ${String(text).slice(0, 60)}`
-    if (text) return String(text).slice(0, 80)
-    if (type) return `EChart · ${type}`
+    const option = JSON.parse(normalizeEchartsBody(body))
+    if (!option || typeof option !== 'object' || Array.isArray(option)) return null
+    const series = option.series
+    if (Array.isArray(series) ? series.length > 0 : Boolean(series && series.type)) return option
   } catch {
     /* ignore */
   }
+  return null
+}
+
+function echartsTitle(body, fallback = 'EChart') {
+  const option = parseEchartsOption(body)
+  if (!option) return fallback
+  const text = option?.title?.text || option?.series?.[0]?.name
+  const type = option?.series?.[0]?.type
+  if (text && type) return `EChart · ${type} — ${String(text).slice(0, 60)}`
+  if (text) return String(text).slice(0, 80)
+  if (type) return `EChart · ${type}`
   return fallback
 }
 
 function parseArtifacts(text) {
   const artifacts = []
+  const seen = new Set()
   const fences = [
     { kind: 'mermaid', re: /```mermaid\s*\n([\s\S]*?)```/gi, title: 'Process diagram' },
     { kind: 'echarts', re: /```(?:echarts|echart)\s*\n([\s\S]*?)```/gi, title: 'EChart' },
+    { kind: 'json', re: /```json\s*\n([\s\S]*?)```/gi, title: 'EChart' },
     { kind: 'html', re: /```html\s*\n([\s\S]*?)```/gi, title: 'Generated page' },
     { kind: 'svg', re: /```svg\s*\n([\s\S]*?)```/gi, title: 'SVG graphic' },
   ]
@@ -262,15 +279,23 @@ function parseArtifacts(text) {
     let match
     const re = new RegExp(fence.re.source, fence.re.flags)
     while ((match = re.exec(text))) {
-      const body = match[1].trim()
+      const raw = match[1].trim()
+      if (!raw) continue
+      if (fence.kind === 'json' && !parseEchartsOption(raw)) continue
+      const kind = fence.kind === 'json' ? 'echarts' : fence.kind
+      const body = kind === 'echarts' ? normalizeEchartsBody(raw) : raw
+      const key = `${kind}:${body}`
+      if (seen.has(key)) continue
+      seen.add(key)
       artifacts.push({
-        kind: fence.kind,
-        title: fence.kind === 'echarts' ? echartsTitle(body) : fence.title,
+        kind,
+        title: kind === 'echarts' ? echartsTitle(body) : fence.title,
         body,
       })
     }
   }
-  if (/^#{1,3} /m.test(text) && text.length > 240) {
+  const prose = text.replace(/```[\s\S]*?```/g, '').replace(/^#{1,3} .+$/gm, '').trim()
+  if (/^#{1,3} /m.test(text) && text.length > 240 && prose.length > 160) {
     artifacts.unshift({
       kind: 'markdown',
       title: (text.match(/^#{1,3} +(.+)$/m) || ['', 'Report'])[1].slice(0, 80),
@@ -429,8 +454,11 @@ function wantsReport(text) {
 
 function wantsChart(text) {
   if (/echart|e-chart/i.test(text)) return true
-  if (wantsDiagram(text) && !/chart|pie|bar|radar|funnel|gauge|heatmap|scatter/i.test(text)) return false
-  return /chart|plot|visuali[sz]e|\bpie\b|\bbar\b|line chart|radar|funnel|gauge|heatmap|scatter|donut|doughnut/i.test(text)
+  if (/\b(?:bar|pie|line|radar|funnel|gauge|heatmap|scatter|donut|doughnut|column)\s+(?:charts?|graphs?|plots?)\b/i.test(text)) {
+    return true
+  }
+  if (/\b(?:pie|radar|funnel|gauge|heatmap|scatter|donut|doughnut)\b/i.test(text)) return true
+  return /\b(?:charts?|plot|visuali[sz]e)\b/i.test(text)
 }
 
 function requestedChartTypes(text) {
@@ -447,16 +475,25 @@ function requestedChartTypes(text) {
   return ['bar', 'pie', 'radar']
 }
 
+function parseFirstNumber(raw) {
+  const match = String(raw ?? '').match(/-?\d+(?:\.\d+)?/)
+  return match ? Number.parseFloat(match[0]) : Number.NaN
+}
+
 function numericRows(blocks) {
   const rows = []
   for (const block of blocks) {
-    const raw = block.value ?? ''
-    const num = Number.parseFloat(String(raw).replace(/[^\d.-]/g, ''))
-    if (block.title && Number.isFinite(num) && /\d/.test(String(raw))) {
+    const num = parseFirstNumber(block.value)
+    if (block.title && Number.isFinite(num)) {
       rows.push({ name: String(block.title).slice(0, 40), value: num })
     }
   }
   return rows.slice(0, 12)
+}
+
+function pickGaugeRow(rows, message) {
+  const lower = String(message || '').toLowerCase()
+  return rows.find((row) => lower.includes(row.name.toLowerCase())) || rows[0]
 }
 
 function fallbackChartRows(title, blocks) {
@@ -474,9 +511,10 @@ function fallbackChartRows(title, blocks) {
   ]
 }
 
-function echartsOption(type, canvasTitle, rows) {
-  const names = rows.map((row) => row.name)
-  const values = rows.map((row) => row.value)
+function echartsOption(type, canvasTitle, rows, message = '') {
+  const data = type === 'gauge' ? [pickGaugeRow(rows, message)].filter(Boolean) : rows
+  const names = data.map((row) => row.name)
+  const values = data.map((row) => row.value)
   const heading = `${canvasTitle} · ${type}`
   const max = Math.max(100, ...values, 1)
 
@@ -485,7 +523,7 @@ function echartsOption(type, canvasTitle, rows) {
       title: { text: heading, left: 'center' },
       tooltip: { trigger: 'item' },
       legend: { bottom: 0 },
-      series: [{ type: 'pie', radius: ['28%', '62%'], data: rows }],
+      series: [{ type: 'pie', radius: ['28%', '62%'], data }],
     }
   }
   if (type === 'line') {
@@ -501,7 +539,7 @@ function echartsOption(type, canvasTitle, rows) {
     return {
       title: { text: heading },
       tooltip: {},
-      radar: { indicator: rows.map((row) => ({ name: row.name, max })) },
+      radar: { indicator: data.map((row) => ({ name: row.name, max })) },
       series: [{ type: 'radar', data: [{ value: values, name: canvasTitle }] }],
     }
   }
@@ -509,11 +547,11 @@ function echartsOption(type, canvasTitle, rows) {
     return {
       title: { text: heading },
       tooltip: { trigger: 'item' },
-      series: [{ type: 'funnel', left: '10%', width: '80%', data: [...rows].sort((a, b) => b.value - a.value) }],
+      series: [{ type: 'funnel', left: '10%', width: '80%', data: [...data].sort((a, b) => b.value - a.value) }],
     }
   }
   if (type === 'gauge') {
-    const first = rows[0] || { name: canvasTitle, value: 0 }
+    const first = data[0] || { name: canvasTitle, value: 0 }
     return {
       title: { text: heading },
       series: [
@@ -532,7 +570,7 @@ function echartsOption(type, canvasTitle, rows) {
       tooltip: { trigger: 'item' },
       xAxis: { type: 'value', name: 'Item' },
       yAxis: { type: 'value', name: 'Score' },
-      series: [{ type: 'scatter', name: canvasTitle, data: rows.map((row, index) => [index + 1, row.value]) }],
+      series: [{ type: 'scatter', name: canvasTitle, data: data.map((row, index) => [index + 1, row.value]) }],
     }
   }
   if (type === 'heatmap') {
@@ -561,7 +599,7 @@ function localChartReply({ title, view, blocks, imageLine, message }) {
   const types = requestedChartTypes(message)
   const fences = types
     .map((type) => {
-      const option = echartsOption(type, title, data)
+      const option = echartsOption(type, title, data, message)
       return `\`\`\`echarts\n${JSON.stringify(option, null, 2)}\n\`\`\``
     })
     .join('\n\n')
@@ -625,8 +663,15 @@ function localAssistantReply({ message, context, imageName }) {
   if (wantsChart(message)) parts.push(chart)
   if (parts.length) return parts.join('\n\n---\n\n')
 
+  const seen = new Set()
   const highlights = [...alerts, ...capabilities, ...blocks]
-    .filter((block) => block.title || block.body || block.value)
+    .filter((block) => {
+      if (!(block.title || block.body || block.value)) return false
+      const key = `${block.title}|${block.value}|${block.body}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
     .slice(0, 5)
     .map((block) => `- ${block.title || block.type}: ${String(block.body || block.value || block.subtitle || '').slice(0, 160)}`)
 
