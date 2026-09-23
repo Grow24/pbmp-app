@@ -1,11 +1,14 @@
+import { Trash2 } from 'lucide-react'
 import { ArtifactPreview, artifactFromContent } from '../../ai/ArtifactPreview'
+import { useAi } from '../../../context/AiContext'
 import { useWorkbench } from '../../../context/WorkbenchContext'
 
 export function DocView() {
   const { canvas, blocks, filterItems } = useWorkbench()
+  const { removeFromCanvas } = useAi()
   const meta = blocks('doc').find((item) => item.blockType === 'doc_meta')
   const sections = filterItems(blocks('doc').filter((item) => item.blockType === 'doc_section'))
-  const savedAi = filterItems(blocks('doc').filter((item) => item.blockType === 'ai_artifact'))
+  const savedAi = blocks('doc').filter((item) => item.blockType === 'ai_artifact')
 
   return (
     <div className="mx-auto max-w-3xl ui-card p-6">
@@ -31,8 +34,21 @@ export function DocView() {
         })}
         {savedAi.map((section) => (
           <section key={section.id} className="rounded border border-brand-100 bg-brand-50/40 p-3">
-            <p className="text-[10px] uppercase tracking-wide text-brand-600">Saved from conversation</p>
-            <h3 className="text-base font-semibold text-slate-900">{section.title}</h3>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-brand-600">Saved from conversation</p>
+                <h3 className="text-base font-semibold text-slate-900">{section.title}</h3>
+              </div>
+              <button
+                type="button"
+                className="ui-btn h-7 px-2 text-rose-600 hover:border-rose-300 hover:bg-rose-50"
+                title="Remove this artifact from the canvas"
+                onClick={() => void removeFromCanvas(section.id)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Remove
+              </button>
+            </div>
             <div className="mt-2">
               <ArtifactPreview artifact={artifactFromContent(section, savedAi)} compact />
             </div>

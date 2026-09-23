@@ -49,6 +49,7 @@ type AiContextValue = {
   forkConversation: (upToMessageId?: string) => Promise<void>
   sendMessage: (text: string, image?: { name: string; dataUrl: string }, replaceUserMessageId?: string) => Promise<void>
   saveArtifact: (id: string) => Promise<void>
+  removeFromCanvas: (contentId: number) => Promise<void>
   searchConversations: (q: string) => Promise<AiConversation[]>
   createProject: (name: string) => Promise<void>
   agents: AiAgent[]
@@ -440,13 +441,38 @@ export function AiProvider({ children }: { children: ReactNode }) {
         (item) => !item.savedContentId && (item.id === id || (clicked && item.messageId === clicked.messageId)),
       )
       const toSave = batch.length ? batch : artifacts.filter((item) => item.id === id && !item.savedContentId)
-      for (const item of toSave) {
-        const result = await aiApi.saveArtifact(item.id, payload)
-        setArtifacts((prev) => prev.map((row) => (row.id === item.id ? result.artifact : row)))
+      setError(null)
+      try {
+        for (const item of toSave) {
+          const result = await aiApi.saveArtifact(item.id, payload)
+          setArtifacts((prev) => prev.map((row) => (row.id === item.id ? result.artifact : row)))
+          setActiveArtifact((prev) => (prev && prev.id === item.id ? result.artifact : prev))
+        }
+        await reload()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not save artifact to canvas')
       }
-      await reload()
     },
     [artifacts, canvas?.tabs, reload, selectedItem?.dbId, viewKind],
+  )
+
+  const removeFromCanvas = useCallback(
+    async (contentId: number) => {
+      setError(null)
+      try {
+        await aiApi.removeCanvasArtifact(contentId)
+        setArtifacts((prev) =>
+          prev.map((item) => (item.savedContentId === contentId ? { ...item, savedContentId: null } : item)),
+        )
+        setActiveArtifact((prev) =>
+          prev && prev.savedContentId === contentId ? { ...prev, savedContentId: null } : prev,
+        )
+        await reload()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not remove artifact from canvas')
+      }
+    },
+    [reload],
   )
 
   const searchConversations = useCallback((q: string) => aiApi.search(q), [])
@@ -533,6 +559,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
       forkConversation,
       sendMessage,
       saveArtifact,
+      removeFromCanvas,
       searchConversations,
       createProject,
       agents,
@@ -571,6 +598,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
       quote,
       runWorkspaceEvent,
       saveArtifact,
+      removeFromCanvas,
       savePrefs,
       searchConversations,
       selectConversation,

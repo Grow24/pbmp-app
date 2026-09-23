@@ -33,11 +33,11 @@ export function MarkdownView({ text }: { text: string }) {
         body.push(lines[i])
         i += 1
       }
-      if (lang === 'echarts' || lang === 'echart' || lang === 'echarts-panel') {
+      if (lang === 'echarts' || lang === 'echart' || lang === 'echarts-panel' || lang === 'echart-panel') {
         const json = body.join('\n')
         nodes.push(
           <div key={`c-${i}`} className="my-2">
-            {lang === 'echarts-panel' || parsePanelSpec(json) ? (
+            {lang === 'echarts-panel' || lang === 'echart-panel' || parsePanelSpec(json) ? (
               <EChartPanel specJson={json} height={260} />
             ) : (
               <EChartView optionJson={json} height={300} />

@@ -96,4 +96,8 @@ export const aiApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     }).then((r) => readJson<{ artifact: AiArtifact }>(r)),
+  removeCanvasArtifact: (contentId: number) =>
+    fetch(`/api/ai/canvas-artifacts/${contentId}`, { method: 'DELETE' }).then((r) =>
+      readJson<{ ok: boolean; contentId: number }>(r),
+    ),
 }

@@ -71,13 +71,21 @@ export function parseLooseJson(raw: string): unknown {
 
 const CHART_TYPES = new Set(['bar', 'line', 'pie', 'radar', 'funnel', 'gauge', 'scatter', 'heatmap'])
 
+function inferSeriesType(option: Record<string, unknown>) {
+  const series = option.series
+  const first = Array.isArray(series) ? series[0] : series
+  return first && typeof first === 'object' && !Array.isArray(first)
+    ? String((first as { type?: string }).type || '')
+    : ''
+}
+
 function asChart(item: unknown): PanelChart | null {
   if (!item || typeof item !== 'object' || Array.isArray(item)) return null
   const row = item as Record<string, unknown>
   const type = typeof row.type === 'string' ? row.type : undefined
   const title = typeof row.title === 'string' ? row.title : undefined
   if (row.option && typeof row.option === 'object' && !Array.isArray(row.option)) {
-    return { type, title, option: row.option as Record<string, unknown> }
+    return { type: type || inferSeriesType(row.option as Record<string, unknown>) || undefined, title, option: row.option as Record<string, unknown> }
   }
   if (row.series && type && CHART_TYPES.has(type)) {
     const { type: _type, title: _title, ...option } = row

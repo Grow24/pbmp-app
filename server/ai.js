@@ -302,10 +302,16 @@ function parseLooseJson(raw) {
 
 const CHART_TYPES = new Set(['bar', 'line', 'pie', 'radar', 'funnel', 'gauge', 'scatter', 'heatmap'])
 
+function inferSeriesType(option) {
+  const series = option?.series
+  const first = Array.isArray(series) ? series[0] : series
+  return first && typeof first === 'object' ? first.type : undefined
+}
+
 function asPanelChart(item) {
   if (!item || typeof item !== 'object' || Array.isArray(item)) return null
   if (item.option && typeof item.option === 'object' && !Array.isArray(item.option)) {
-    return { type: item.type, title: item.title, option: item.option }
+    return { type: item.type || inferSeriesType(item.option), title: item.title, option: item.option }
   }
   if (item.series && CHART_TYPES.has(item.type)) {
     const { type, title, ...option } = item
@@ -342,7 +348,7 @@ function parseEchartsOption(body) {
   if (!option || typeof option !== 'object' || Array.isArray(option)) return null
   if (Array.isArray(option.charts)) return null
   const series = option.series
-  if (Array.isArray(series) ? series.length > 0 : Boolean(series && series.type)) return option
+  if (Array.isArray(series) ? series.length > 0 : Boolean(series && typeof series === 'object')) return option
   return null
 }
 
@@ -369,6 +375,37 @@ function echartsTitle(body, fallback = 'EChart') {
   return fallback
 }
 
+function pushParsedArtifact(artifacts, seen, fenceKind, raw, fallbackTitle) {
+  if (fenceKind === 'mermaid' || fenceKind === 'html' || fenceKind === 'svg') {
+    const body = String(raw || '').trim()
+    if (!body) return
+    const key = `${fenceKind}:${body}`
+    if (seen.has(key)) return
+    seen.add(key)
+    artifacts.push({ kind: fenceKind, title: fallbackTitle, body })
+    return
+  }
+  const panel = parseEchartsPanel(raw)
+  const option = panel ? null : parseEchartsOption(raw)
+  if (fenceKind === 'json' && !panel && !option) return
+  const kind = panel ? 'echarts-panel' : fenceKind === 'json' || option ? 'echarts' : fenceKind
+  if ((kind === 'echarts-panel' && !panel) || (kind === 'echarts' && !option)) return
+  const body = panel
+    ? JSON.stringify({ panel: true, title: panel.title || '', charts: panel.charts })
+    : option
+      ? JSON.stringify(option)
+      : normalizeEchartsBody(raw)
+  const key = `${kind}:${body}`
+  if (seen.has(key)) return
+  seen.add(key)
+  const panelTitle = panel?.title || (panel ? `EChart panel · ${panel.charts.length} charts` : '')
+  artifacts.push({
+    kind,
+    title: kind === 'echarts-panel' ? panelTitle : kind === 'echarts' ? echartsTitle(body) : fallbackTitle,
+    body,
+  })
+}
+
 function parseArtifacts(text) {
   const artifacts = []
   const seen = new Set()
@@ -386,26 +423,16 @@ function parseArtifacts(text) {
     while ((match = re.exec(text))) {
       const raw = match[1].trim()
       if (!raw) continue
-      const panel = parseEchartsPanel(raw)
-      const option = panel ? null : parseEchartsOption(raw)
-      if (fence.kind === 'json' && !panel && !option) continue
-      const kind = panel ? 'echarts-panel' : fence.kind === 'json' || option ? 'echarts' : fence.kind
-      if ((kind === 'echarts-panel' && !panel) || (kind === 'echarts' && !option && fence.kind !== 'echarts')) continue
-      const body = panel
-        ? JSON.stringify({ panel: true, title: panel.title || '', charts: panel.charts })
-        : option
-          ? JSON.stringify(option)
-          : normalizeEchartsBody(raw)
-      const key = `${kind}:${body}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      const panelTitle = panel?.title || (panel ? `EChart panel · ${panel.charts.length} charts` : '')
-      artifacts.push({
-        kind,
-        title: kind === 'echarts-panel' ? panelTitle : kind === 'echarts' ? echartsTitle(body) : fence.title,
-        body,
-      })
+      pushParsedArtifact(artifacts, seen, fence.kind, raw, fence.title)
     }
+  }
+  const trailing = text.match(/```(mermaid|echarts-panel|echart-panel|echarts|echart|json|html|svg)\s*\n([\s\S]*)$/i)
+  if (trailing && !/```/.test(trailing[2])) {
+    const lang = trailing[1].toLowerCase()
+    const kind = lang === 'echart-panel' ? 'echarts-panel' : lang === 'echart' ? 'echarts' : lang
+    const title =
+      kind === 'mermaid' ? 'Process diagram' : kind === 'echarts-panel' ? 'EChart panel' : kind === 'html' ? 'Generated page' : kind === 'svg' ? 'SVG graphic' : 'EChart'
+    pushParsedArtifact(artifacts, seen, kind, trailing[2].trim(), title)
   }
   const prose = text.replace(/```[\s\S]*?```/g, '').replace(/^#{1,3} .+$/gm, '').trim()
   if (/^#{1,3} /m.test(text) && text.length > 240 && prose.length > 160) {
@@ -585,7 +612,7 @@ function wantsChart(text) {
 function requestedChartTypes(text) {
   const found = []
   if (/pie|donut|doughnut/i.test(text)) found.push('pie')
-  if (/line|trend/i.test(text)) found.push('line')
+  if (/\bline\b|trend/i.test(text)) found.push('line')
   if (/radar/i.test(text)) found.push('radar')
   if (/funnel/i.test(text)) found.push('funnel')
   if (/gauge/i.test(text)) found.push('gauge')
@@ -924,6 +951,8 @@ async function readOpenAiStream(body, onDelta) {
   }
   return full
 }
+
+export { parseArtifacts }
 
 export function registerAiRoutes(app) {
   app.get('/api/ai/status', (_req, res) => {
@@ -1265,5 +1294,18 @@ export function registerAiRoutes(app) {
       artifact: mapArtifact({ ...artifact, saved_content_id: result.insertId }),
       content: { ...saved[0] },
     })
+  })
+
+  app.delete('/api/ai/canvas-artifacts/:contentId', async (req, res) => {
+    const contentId = Number(req.params.contentId)
+    if (!contentId) return res.status(400).json({ error: 'contentId is required' })
+    const [rows] = await pool.query('SELECT id FROM content_items WHERE id = ? AND block_type = ?', [
+      contentId,
+      'ai_artifact',
+    ])
+    if (!rows[0]) return res.status(404).json({ error: 'Saved artifact not found' })
+    await pool.query('UPDATE ai_artifacts SET saved_content_id = NULL WHERE saved_content_id = ?', [contentId])
+    await pool.query('DELETE FROM content_items WHERE id = ? AND block_type = ?', [contentId, 'ai_artifact'])
+    res.json({ ok: true, contentId })
   })
 }

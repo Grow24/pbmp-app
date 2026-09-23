@@ -1,9 +1,9 @@
-import { Maximize2, Save } from 'lucide-react'
+import { Maximize2, Save, Trash2 } from 'lucide-react'
 import { useAi } from '../../context/AiContext'
 import { ArtifactPreview } from './ArtifactPreview'
 
 export function ArtifactsPane() {
-  const { artifacts, activeArtifact, setActiveArtifact, setFullscreenArtifact, saveArtifact } = useAi()
+  const { artifacts, activeArtifact, setActiveArtifact, setFullscreenArtifact, saveArtifact, removeFromCanvas, error } = useAi()
 
   if (!artifacts.length) {
     return (
@@ -47,17 +47,29 @@ export function ArtifactsPane() {
                 <Maximize2 className="h-3 w-3" />
                 Resize
               </button>
-              <button
-                type="button"
-                className="ui-btn-primary h-7 px-2"
-                disabled={Boolean(activeArtifact.savedContentId)}
-                onClick={() => void saveArtifact(activeArtifact.id)}
-              >
-                <Save className="h-3 w-3" />
-                {activeArtifact.savedContentId ? 'Saved' : 'Save to canvas'}
-              </button>
+              {activeArtifact.savedContentId ? (
+                <button
+                  type="button"
+                  className="ui-btn h-7 px-2 text-rose-600 hover:border-rose-300 hover:bg-rose-50"
+                  title="Remove this artifact from the canvas"
+                  onClick={() => void removeFromCanvas(activeArtifact.savedContentId!)}
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Remove
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="ui-btn-primary h-7 px-2"
+                  onClick={() => void saveArtifact(activeArtifact.id)}
+                >
+                  <Save className="h-3 w-3" />
+                  Save to canvas
+                </button>
+              )}
             </div>
           </div>
+          {error && <p className="mb-2 text-[12px] text-rose-600">{error}</p>}
           <ArtifactPreview artifact={activeArtifact} />
         </div>
       )}

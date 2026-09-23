@@ -16,7 +16,7 @@ export function artifactFromContent(item: ContentBlock, siblings: ContentBlock[]
   const body =
     kind === 'markdown' && othersVisual
       ? String(item.body || '')
-          .replace(/```(?:echarts|echart|mermaid)[\s\S]*?```/g, '')
+          .replace(/```(?:echarts-panel|echart-panel|echarts|echart|mermaid)[\s\S]*?```/g, '')
           .trim()
       : item.body || ''
   return {
