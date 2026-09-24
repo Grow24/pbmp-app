@@ -1,15 +1,17 @@
-import { GripVertical } from 'lucide-react'
+import { GripVertical, Trash2 } from 'lucide-react'
+import { ArtifactPreview, artifactFromContent } from '../../ai/ArtifactPreview'
 import { useAi } from '../../../context/AiContext'
 import { useWorkbench } from '../../../context/WorkbenchContext'
 
 export function DashboardView() {
   const { blocks, filterItems, reorderBlocks } = useWorkbench()
-  const { prefs } = useAi()
+  const { prefs, removeFromCanvas } = useAi()
   const movable = prefs.layout === 'movable'
   const kpis = blocks('dashboard').filter((item) => item.blockType === 'kpi')
   const work = filterItems(blocks('dashboard').filter((item) => item.blockType === 'work_row'))
   const sprint = blocks('dashboard').find((item) => item.blockType === 'sprint')
   const stats = blocks('dashboard').filter((item) => item.blockType === 'sprint_stat')
+  const savedAi = blocks('dashboard').filter((item) => item.blockType === 'ai_artifact')
 
   const moveKpi = (from: number, to: number) => {
     if (to < 0 || to >= kpis.length) return
@@ -19,12 +21,20 @@ export function DashboardView() {
     void reorderBlocks(ids)
   }
 
+  const moveArtifact = (from: number, to: number) => {
+    if (to < 0 || to >= savedAi.length) return
+    const ids = savedAi.map((item) => item.id)
+    const [moved] = ids.splice(from, 1)
+    ids.splice(to, 0, moved)
+    void reorderBlocks(ids)
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-4">
       <p className="text-[11px] text-slate-400">
         {movable
-          ? 'Widgets are movable. Drag the handle to rearrange KPIs. Switch to Fixed in Personal preferences to lock them.'
-          : 'Widgets are fixed. Open Personal preferences and choose Movable if you want to drag KPIs.'}
+          ? 'Widgets are movable. Drag the handle to rearrange KPIs and saved AI artifacts. Switch to Fixed in Personal preferences to lock them.'
+          : 'Widgets are fixed. Open Personal preferences and choose Movable if you want to drag KPIs and saved artifacts.'}
       </p>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((kpi, index) => (
@@ -104,6 +114,66 @@ export function DashboardView() {
           </article>
         )}
       </div>
+
+      {savedAi.length > 0 && (
+        <section>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Saved AI artifacts</p>
+            {movable && (
+              <p className="text-[11px] text-slate-400">Drag a card to move it</p>
+            )}
+          </div>
+          <div className={`grid gap-3 ${savedAi.length > 1 ? 'lg:grid-cols-2' : ''}`}>
+            {savedAi.map((item, index) => (
+              <article
+                key={item.id}
+                onDragOver={(event) => {
+                  if (movable) event.preventDefault()
+                }}
+                onDrop={(event) => {
+                  if (!movable) return
+                  event.preventDefault()
+                  moveArtifact(Number(event.dataTransfer.getData('text/plain')), index)
+                }}
+                className="overflow-hidden rounded border border-slate-200 bg-white p-3"
+              >
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-wide text-slate-400">
+                      {String(item.value || 'artifact')} · saved from conversation
+                    </p>
+                    <h3 className="text-sm font-semibold text-slate-900">{item.title}</h3>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {movable ? (
+                      <span
+                        draggable
+                        title="Drag to move"
+                        onDragStart={(event) => {
+                          event.dataTransfer.setData('text/plain', String(index))
+                        }}
+                        className="inline-flex h-7 w-7 cursor-grab items-center justify-center rounded border border-slate-200 text-slate-400"
+                      >
+                        <GripVertical className="h-3.5 w-3.5" />
+                      </span>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="ui-btn h-7 px-2 text-rose-600 hover:border-rose-300 hover:bg-rose-50"
+                      title="Remove this artifact from the canvas"
+                      onClick={() => void removeFromCanvas(item.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Remove
+                    </button>
+                  </div>
+                </div>
+                <ArtifactPreview artifact={artifactFromContent(item, savedAi)} compact />
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   )
 }

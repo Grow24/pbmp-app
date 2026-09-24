@@ -51,7 +51,7 @@ export function PrefsForm({ compact = false }: { compact?: boolean }) {
           onChange={(layout) => setDraft((p) => ({ ...p, layout }))}
         />
         <p className="text-[11px] leading-relaxed text-slate-500">
-          Fixed locks the dashboard KPI order. Movable lets this user drag widgets. Other people still have their own preference.
+          Fixed locks the dashboard KPI and artifact order. Movable lets this user drag those widgets. Other people still have their own preference.
         </p>
       </Section>
 

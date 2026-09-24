@@ -23,7 +23,7 @@ export const THEME_OPTIONS: { value: AiTheme; label: string }[] = [
 
 export const LAYOUT_OPTIONS: { value: AiLayout; label: string }[] = [
   { value: 'fixed', label: 'Fixed — widgets stay put' },
-  { value: 'movable', label: 'Movable — drag KPI widgets' },
+  { value: 'movable', label: 'Movable — drag KPI and artifact widgets' },
 ]
 
 export const EVENT_OPTIONS: { value: AiStartupEvent; label: string }[] = [
