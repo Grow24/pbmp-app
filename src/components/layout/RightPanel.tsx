@@ -1,6 +1,7 @@
-import { Bot, FolderKanban, Highlighter, MessageSquare, Sparkles, X } from 'lucide-react'
+import { Bot, FolderKanban, Highlighter, MessageSquare, MessagesSquare, Sparkles, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { AgentsPane } from '../ai/AgentsPane'
+import { AllChatsPane } from '../ai/AllChatsPane'
 import { ArtifactsPane } from '../ai/ArtifactsPane'
 import { ChatPane } from '../ai/ChatPane'
 import { HighlightPane } from '../ai/HighlightPane'
@@ -8,6 +9,7 @@ import { ProjectsPane } from '../ai/ProjectsPane'
 import { useWorkbench } from '../../context/WorkbenchContext'
 
 const tabs = [
+  { id: 'all-chats', label: 'All Chats' },
   { id: 'chat', label: 'Chat' },
   { id: 'projects', label: 'Projects' },
   { id: 'artifacts', label: 'Artifacts' },
@@ -21,6 +23,15 @@ export function RightPanel() {
   if (!rightOpen) {
     return (
       <aside className="hidden h-full w-12 shrink-0 flex-col items-center gap-1 border-l border-slate-200 bg-white py-2 xl:flex">
+        <RailButton
+          label="All Chats"
+          onClick={() => {
+            setRightTab('all-chats')
+            setRightOpen(true)
+          }}
+        >
+          <MessagesSquare className="h-4 w-4" />
+        </RailButton>
         <RailButton
           label="Chat"
           onClick={() => {
@@ -75,15 +86,17 @@ export function RightPanel() {
       <div className="flex h-10 items-center justify-between border-b border-slate-200 px-3">
         <span className="min-w-0">
           <span className="block text-[13px] font-medium text-slate-800">
-            {rightTab === 'chat'
-              ? 'Conversation'
-              : rightTab === 'projects'
-                ? 'Projects'
-                : rightTab === 'artifacts'
-                  ? 'Artifacts'
-                  : rightTab === 'agents'
-                    ? 'Agents'
-                    : 'Highlights'}
+            {rightTab === 'all-chats'
+              ? 'All Chats'
+              : rightTab === 'chat'
+                ? 'Conversation'
+                : rightTab === 'projects'
+                  ? 'Projects'
+                  : rightTab === 'artifacts'
+                    ? 'Artifacts'
+                    : rightTab === 'agents'
+                      ? 'Agents'
+                      : 'Highlights'}
           </span>
           <span className="block text-[10px] text-slate-400">Drag the left edge to resize</span>
         </span>
@@ -97,13 +110,13 @@ export function RightPanel() {
         </button>
       </div>
 
-      <div className="flex border-b border-slate-200 px-2">
+      <div className="flex overflow-x-auto border-b border-slate-200 px-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setRightTab(tab.id)}
-            className={`-mb-px border-b-2 px-2 py-2 text-xs ${
+            className={`-mb-px shrink-0 border-b-2 px-2 py-2 text-xs ${
               rightTab === tab.id ? 'border-brand-500 font-medium text-brand-600' : 'border-transparent text-slate-500'
             }`}
           >
@@ -112,6 +125,7 @@ export function RightPanel() {
         ))}
       </div>
 
+      {rightTab === 'all-chats' && <AllChatsPane />}
       {rightTab === 'chat' && <ChatPane />}
       {rightTab === 'projects' && <ProjectsPane />}
       {rightTab === 'artifacts' && <ArtifactsPane />}

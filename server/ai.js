@@ -199,7 +199,47 @@ function mapConversation(row) {
     pinned: Boolean(row.pinned),
     temporary: Boolean(row.temporary),
     updatedAt: row.updated_at,
+    level: row.level || '',
+    projectName: row.projectName || '',
   }
+}
+
+function menuTrailLabel(slug, bySlug, byId) {
+  const current = bySlug.get(slug)
+  if (!current) return slug || ''
+  const trail = []
+  let walk = current
+  const seen = new Set()
+  while (walk && !seen.has(walk.id)) {
+    seen.add(walk.id)
+    trail.unshift(walk.label)
+    walk = walk.parent_id ? byId.get(walk.parent_id) : null
+  }
+  return trail.join(' > ')
+}
+
+async function listAllConversations(includeArchived = false) {
+  const sql = includeArchived
+    ? 'SELECT * FROM ai_conversations WHERE temporary = 0 ORDER BY pinned DESC, updated_at DESC'
+    : 'SELECT * FROM ai_conversations WHERE archived = 0 AND temporary = 0 ORDER BY pinned DESC, updated_at DESC'
+  const [rows] = await pool.query(sql)
+  const [items] = await pool.query('SELECT id, slug, label, parent_id FROM menu_items')
+  const [tabs] = await pool.query('SELECT id, slug, label, menu_item_id FROM canvas_tabs')
+  const [subtabs] = await pool.query('SELECT slug, label, tab_id FROM canvas_subtabs')
+  const [projects] = await pool.query('SELECT id, name FROM ai_projects')
+  const bySlug = new Map(items.map((item) => [item.slug, item]))
+  const byId = new Map(items.map((item) => [item.id, item]))
+  const projectName = new Map(projects.map((item) => [item.id, item.name]))
+  return rows.map((row) => {
+    const item = bySlug.get(row.canvas_slug)
+    const tab =
+      tabs.find((entry) => entry.slug === row.tab_slug && entry.menu_item_id === item?.id) ||
+      tabs.find((entry) => entry.slug === row.tab_slug)
+    const sub = tab ? subtabs.find((entry) => entry.slug === row.subtab_slug && entry.tab_id === tab.id) : null
+    const menu = menuTrailLabel(row.canvas_slug, bySlug, byId)
+    const level = [menu || row.canvas_slug || 'Workspace', tab?.label, sub?.label].filter(Boolean).join(' · ')
+    return mapConversation({ ...row, level, projectName: projectName.get(row.project_id) || '' })
+  })
 }
 
 function parseTrace(value) {
@@ -1021,6 +1061,9 @@ export function registerAiRoutes(app) {
   })
 
   app.get('/api/ai/conversations', async (req, res) => {
+    if (req.query.scope === 'all' || req.query.all === '1') {
+      return res.json(await listAllConversations(req.query.archived === '1'))
+    }
     const projectId = Number(req.query.projectId)
     if (!projectId) return res.status(400).json({ error: 'projectId is required' })
     res.json(await listConversations(projectId, req.query.archived === '1'))

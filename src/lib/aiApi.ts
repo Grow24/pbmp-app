@@ -43,6 +43,8 @@ export const aiApi = {
       `/api/ai/workspace?canvasSlug=${encodeURIComponent(canvasSlug)}&tabSlug=${encodeURIComponent(tabSlug)}&subtabSlug=${encodeURIComponent(subtabSlug)}&archived=${archived ? '1' : '0'}`,
     ).then((r) => readJson<WorkspacePayload>(r)),
   conversation: (id: string) => fetch(`/api/ai/conversations/${id}`).then((r) => readJson<ConversationDetail>(r)),
+  allConversations: (archived = false) =>
+    fetch(`/api/ai/conversations?scope=all&archived=${archived ? '1' : '0'}`).then((r) => readJson<AiConversation[]>(r)),
   createConversation: (payload: {
     projectId: number
     canvasSlug?: string

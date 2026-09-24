@@ -25,6 +25,7 @@ type AiContextValue = {
   project: AiProject | null
   trail: string[]
   conversations: AiConversation[]
+  allChats: AiConversation[]
   conversation: AiConversation | null
   messages: AiMessage[]
   artifacts: AiArtifact[]
@@ -98,6 +99,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
   const [project, setProject] = useState<AiProject | null>(null)
   const [trail, setTrail] = useState<string[]>([])
   const [conversations, setConversations] = useState<AiConversation[]>([])
+  const [allChats, setAllChats] = useState<AiConversation[]>([])
   const [conversation, setConversation] = useState<AiConversation | null>(null)
   const [messages, setMessages] = useState<AiMessage[]>([])
   const [artifacts, setArtifacts] = useState<AiArtifact[]>([])
@@ -127,6 +129,8 @@ export function AiProvider({ children }: { children: ReactNode }) {
     setProject(data.project)
     setTrail(data.trail)
     setConversations(data.conversations)
+    const listed = await aiApi.allConversations(showArchived).catch(() => [] as AiConversation[])
+    setAllChats(listed)
     if (data.agents?.length) setAgents(data.agents)
     if (data.team?.length) setTeam(data.team)
     const bound = data.conversations.find((item) => item.id === data.boundConversationId)
@@ -176,6 +180,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
     setConversation(detail.conversation)
     setMessages(detail.messages)
     setArtifacts(detail.artifacts)
+    setAgentSlug(detail.conversation.agentSlug || 'general')
     setRightTab('chat')
   }, [setRightTab])
 
@@ -194,7 +199,10 @@ export function AiProvider({ children }: { children: ReactNode }) {
       setConversation(created)
       setMessages([])
       setArtifacts([])
-      if (!temporary) setConversations((prev) => [created, ...prev])
+      if (!temporary) {
+        setConversations((prev) => [created, ...prev])
+        setAllChats((prev) => [created, ...prev.filter((item) => item.id !== created.id)])
+      }
       setRightTab('chat')
       setRightOpen(true)
     },
@@ -206,6 +214,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
     const updated = await aiApi.patchConversation(conversation.id, { temporary: false })
     setConversation(updated)
     setConversations((prev) => [updated, ...prev.filter((item) => item.id !== updated.id)])
+    setAllChats((prev) => [updated, ...prev.filter((item) => item.id !== updated.id)])
   }, [conversation])
 
   const discardTemp = useCallback(async () => {
@@ -535,6 +544,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
       project,
       trail,
       conversations,
+      allChats,
       conversation,
       messages,
       artifacts,
@@ -578,6 +588,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
       agentSlug,
       agents,
       binding,
+      allChats,
       conversation,
       conversations,
       createProject,

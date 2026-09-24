@@ -43,6 +43,8 @@ export type AiConversation = {
   pinned: boolean
   temporary: boolean
   updatedAt: string
+  level?: string
+  projectName?: string
 }
 
 export type AiAgent = {
