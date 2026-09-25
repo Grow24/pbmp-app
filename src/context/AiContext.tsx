@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { applyTheme, prefsFromSettings, prefsToSettings } from '../ai/prefs'
-import { speakText } from '../ai/speech'
+import { speakWithPrefs } from '../ai/speech'
 import type { AiAgent, AiArtifact, AiConversation, AiMessage, AiPrefs, AiProject, AiStartupEvent, AiStatus, AiTeammate, InfoPath } from '../ai/types'
 import { PBMP_AGENTS, PBMP_TEAM } from '../ai/catalog'
 import { aiApi, type ChatContextPayload } from '../lib/aiApi'
@@ -48,7 +48,13 @@ type AiContextValue = {
   archiveConversation: (archived: boolean) => Promise<void>
   pinConversation: () => Promise<void>
   forkConversation: (upToMessageId?: string) => Promise<void>
-  sendMessage: (text: string, image?: { name: string; dataUrl: string }, replaceUserMessageId?: string) => Promise<void>
+  sendMessage: (
+    text: string,
+    image?: { name: string; dataUrl: string },
+    replaceUserMessageId?: string,
+    extras?: { agentSlug?: string },
+  ) => Promise<void>
+  addLocalExchange: (userText: string, assistantText: string) => void
   saveArtifact: (id: string) => Promise<void>
   removeFromCanvas: (contentId: number) => Promise<void>
   searchConversations: (q: string) => Promise<AiConversation[]>
@@ -259,11 +265,24 @@ export function AiProvider({ children }: { children: ReactNode }) {
     [applyWorkspace, conversation, selectConversation],
   )
 
+  const addLocalExchange = useCallback((userText: string, assistantText: string) => {
+    const userId = crypto.randomUUID()
+    const assistantId = crypto.randomUUID()
+    setMessages((prev) => [
+      ...prev,
+      { id: userId, role: 'user', text: userText },
+      { id: assistantId, role: 'assistant', text: assistantText },
+    ])
+    setRightTab('chat')
+    setRightOpen(true)
+  }, [setRightOpen, setRightTab])
+
   const sendMessage = useCallback(
-    async (text: string, image?: { name: string; dataUrl: string }, replaceUserMessageId?: string) => {
+    async (text: string, image?: { name: string; dataUrl: string }, replaceUserMessageId?: string, extras?: { agentSlug?: string }) => {
       if (!project) return
       const trimmed = text.trim()
       if (!trimmed && !image) return
+      const usedAgent = extras?.agentSlug || agentSlug
       const userId = replaceUserMessageId || crypto.randomUUID()
       const assistantId = crypto.randomUUID()
       const quoted = quote ? `${trimmed}\n\nQuoted from canvas:\n${quote}` : trimmed
@@ -300,7 +319,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
         tab: activeTab?.label,
         subtab: activeSubtab?.label,
         viewKind,
-        agentSlug,
+        agentSlug: usedAgent,
         blocks: canvasBlocks(onFilters.length ? filterItems(blocks()) : blocks()),
         filters: onFilters.map((filter) => filter.name),
       }
@@ -315,7 +334,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
             canvasSlug: selectedId,
             tabSlug,
             subtabSlug,
-            agentSlug,
+            agentSlug: usedAgent,
             title: canvas?.title,
             message: quoted,
             image,
@@ -518,10 +537,10 @@ export function AiProvider({ children }: { children: ReactNode }) {
         return
       }
       if (event === 'speak-title') {
-        speakText([canvas?.title, activeTab?.label].filter(Boolean).join('. '), prefs.speechLang)
+        void speakWithPrefs([canvas?.title, activeTab?.label].filter(Boolean).join('. '), prefs)
       }
     },
-    [activeTab?.label, canvas?.description, canvas?.title, prefs.speechLang, prefs.startupEvent, setRightOpen, setRightTab],
+    [activeTab?.label, canvas?.description, canvas?.title, prefs.speechLang, prefs.speechVoice, prefs.startupEvent, setRightOpen, setRightTab],
   )
 
   useEffect(() => {
@@ -568,6 +587,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
       pinConversation,
       forkConversation,
       sendMessage,
+      addLocalExchange,
       saveArtifact,
       removeFromCanvas,
       searchConversations,
@@ -614,6 +634,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
       searchConversations,
       selectConversation,
       sendMessage,
+      addLocalExchange,
       setAgent,
       showArchived,
       status,

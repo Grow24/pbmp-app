@@ -38,7 +38,7 @@ export function TabsPage({ onMessage }: { onMessage: (text: string) => void }) {
     <div className="max-w-5xl space-y-4">
       <PageHead
         title="Canvas tabs"
-        subtitle="Har menu item ke canvas par kaunse tabs aur sub-tabs dikhenge, yahan set karo."
+        subtitle="Set which tabs and sub-tabs appear on each menu item's canvas."
       />
 
       <section className="ui-card p-5">

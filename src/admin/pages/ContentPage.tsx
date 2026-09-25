@@ -69,7 +69,7 @@ export function ContentPage({ onMessage }: { onMessage: (text: string) => void }
     <div className="space-y-4">
       <PageHead
         title="Page content"
-        subtitle="Jo cards, KPIs, SWOT points, inquiry Q&A workbench par dikhte hain — yahan add/edit/delete karo."
+        subtitle="Add, edit, or delete the cards, KPIs, SWOT points, and inquiry Q&A that appear on the workbench."
       />
 
       <section className="ui-card grid gap-3 p-5 md:grid-cols-2">
@@ -118,7 +118,7 @@ export function ContentPage({ onMessage }: { onMessage: (text: string) => void }
             Current blocks ({rows.length})
           </div>
           <div className="max-h-[560px] overflow-auto">
-            {rows.length === 0 && <p className="px-4 py-6 text-[13px] text-slate-400">Is view par abhi koi content nahi hai.</p>}
+            {rows.length === 0 && <p className="px-4 py-6 text-[13px] text-slate-400">This view has no content yet.</p>}
             {rows.map((row) => (
               <div key={row.id} className="flex items-start gap-2 border-b border-slate-100 px-4 py-3">
                 <div className="min-w-0 flex-1">

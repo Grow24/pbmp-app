@@ -14,9 +14,11 @@ const settings = [
   ['chat_welcome', 'I can walk the current AS-IS canvas with you — capabilities, maps, or the inquiry trail. What should we open first?', 'general', 'Chat welcome message', 'textarea', 11],
   ['ai_auto_scroll', '1', 'ai', 'Auto-scroll chat', 'text', 20],
   ['ai_stt', '1', 'ai', 'Browser speech-to-text', 'text', 21],
-  ['ai_tts', '0', 'ai', 'Browser text-to-speech', 'text', 22],
-  ['ai_tts_autoplay', '0', 'ai', 'Auto-play spoken answers', 'text', 23],
+  ['ai_tts', '1', 'ai', 'Voice output', 'text', 22],
+  ['ai_tts_autoplay', '0', 'ai', 'Speak every reply', 'text', 23],
+  ['ai_voice_reply_after_mic', '1', 'ai', 'Speak reply after voice input', 'text', 23],
   ['ai_speech_lang', 'en-IN', 'ai', 'Speech language', 'text', 24],
+  ['ai_speech_voice', '', 'ai', 'Reply voice', 'text', 24],
   ['ai_auto_send_ms', '900', 'ai', 'Auto-send after speech (ms)', 'text', 25],
   ['ai_image_resize', '1', 'ai', 'Resize images before upload', 'text', 26],
   ['ai_long_paste', '1', 'ai', 'Convert long paste to attachment', 'text', 27],
@@ -26,6 +28,9 @@ const settings = [
   ['ai_layout', 'movable', 'ai', 'Canvas layout: fixed or movable', 'text', 31],
   ['ai_startup_event', 'none', 'ai', 'Event on workspace open', 'text', 32],
   ['ai_compact_chat', '0', 'ai', 'Compact chat bubbles', 'text', 33],
+  ['ai_tts_provider', 'browser', 'ai', 'TTS provider: browser, openai, custom', 'text', 34],
+  ['ai_tts_speed', '1', 'ai', 'TTS playback speed', 'text', 35],
+  ['ai_tts_cloud_voice', 'alloy', 'ai', 'Cloud TTS voice', 'text', 36],
 ]
 
 export const aiSettings = settings.filter((row) => row[2] === 'ai')

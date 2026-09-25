@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { applyTheme, EVENT_OPTIONS, LAYOUT_OPTIONS, THEME_OPTIONS } from '../../ai/prefs'
-import type { AiPrefs } from '../../ai/types'
+import { OPENAI_TTS_VOICES } from '../../ai/composer'
+import { applyTheme, EVENT_OPTIONS, LAYOUT_OPTIONS, SPEECH_LANG_OPTIONS, THEME_OPTIONS, TTS_PROVIDER_OPTIONS } from '../../ai/prefs'
+import type { AiPrefs, TtsProvider } from '../../ai/types'
+import { listSpeechVoices, speakWithPrefs } from '../../ai/speech'
 import { useAi } from '../../context/AiContext'
 
 export function PrefsForm({ compact = false }: { compact?: boolean }) {
@@ -8,10 +10,18 @@ export function PrefsForm({ compact = false }: { compact?: boolean }) {
   const [draft, setDraft] = useState<AiPrefs>(prefs)
   const [saved, setSaved] = useState('')
   const [eventNote, setEventNote] = useState('')
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
 
   useEffect(() => {
     setDraft(prefs)
   }, [prefs])
+
+  useEffect(() => {
+    const load = () => setVoices(listSpeechVoices())
+    load()
+    window.speechSynthesis?.addEventListener('voiceschanged', load)
+    return () => window.speechSynthesis?.removeEventListener('voiceschanged', load)
+  }, [])
 
   useEffect(() => {
     applyTheme(draft.theme)
@@ -78,22 +88,104 @@ export function PrefsForm({ compact = false }: { compact?: boolean }) {
         </div>
       </Section>
 
-      <Section title="Conversation & speech">
+      <Section title="Speech">
+        <Toggle
+          label="Voice output"
+          checked={draft.tts}
+          onChange={(tts) => setDraft((p) => ({ ...p, tts }))}
+        />
+        <Select
+          label="TTS provider"
+          value={draft.ttsProvider}
+          options={TTS_PROVIDER_OPTIONS}
+          onChange={(ttsProvider) => setDraft((p) => ({ ...p, ttsProvider: ttsProvider as TtsProvider }))}
+        />
+        <p className="text-[11px] leading-relaxed text-slate-500">
+          LibreChat-style path: Browser first (fast, no server), then cloud (OpenAI/Azure/ElevenLabs-compatible), then a custom endpoint later for local engines such as Piper, Kokoro, or Chatterbox.
+        </p>
+        {draft.ttsProvider === 'browser' ? (
+          <>
+            <Select
+              label="Speech language"
+              value={draft.speechLang}
+              options={
+                SPEECH_LANG_OPTIONS.some((item) => item.value === draft.speechLang)
+                  ? SPEECH_LANG_OPTIONS
+                  : [...SPEECH_LANG_OPTIONS, { value: draft.speechLang, label: draft.speechLang }]
+              }
+              onChange={(speechLang) => setDraft((p) => ({ ...p, speechLang, speechVoice: '' }))}
+            />
+            <Select
+              label="Browser voice"
+              value={draft.speechVoice}
+              options={[
+                { value: '', label: 'Auto — match speech language' },
+                ...voices
+                  .filter((voice) => {
+                    const prefix = draft.speechLang.slice(0, 2).toLowerCase()
+                    return voice.lang.toLowerCase().startsWith(prefix)
+                  })
+                  .map((voice) => ({
+                    value: voice.voiceURI,
+                    label: `${voice.name} (${voice.lang})`,
+                  })),
+              ]}
+              onChange={(speechVoice) => setDraft((p) => ({ ...p, speechVoice }))}
+            />
+          </>
+        ) : (
+          <Select
+            label="Cloud voice"
+            value={draft.ttsCloudVoice}
+            options={OPENAI_TTS_VOICES.map((voice) => ({ value: voice, label: voice }))}
+            onChange={(ttsCloudVoice) => setDraft((p) => ({ ...p, ttsCloudVoice }))}
+          />
+        )}
+        <label className="flex items-center justify-between gap-3 border border-slate-200 px-3 py-2 text-[13px]">
+          <span className="text-slate-600">Playback speed</span>
+          <input
+            type="range"
+            min={0.5}
+            max={2}
+            step={0.1}
+            value={draft.ttsSpeed}
+            onChange={(event) => setDraft((p) => ({ ...p, ttsSpeed: Number(event.target.value) }))}
+            className="w-36"
+          />
+          <span className="w-8 text-right text-[12px] text-slate-500">{draft.ttsSpeed.toFixed(1)}×</span>
+        </label>
+        <Toggle
+          label="Speak the reply after I send with the mic"
+          checked={draft.voiceReplyAfterMic}
+          onChange={(voiceReplyAfterMic) => setDraft((p) => ({ ...p, voiceReplyAfterMic }))}
+        />
+        <Toggle
+          label="Automatic playback — speak every reply"
+          checked={draft.ttsAutoplay}
+          onChange={(ttsAutoplay) => setDraft((p) => ({ ...p, ttsAutoplay }))}
+        />
+        <p className="text-[11px] leading-relaxed text-slate-500">
+          Chat box: <span className="font-medium text-slate-700">@</span> who (Agent) · <span className="font-medium text-slate-700">$</span> how
+          (Skill) · <span className="font-medium text-slate-700">#</span> what (canvas) · <span className="font-medium text-slate-700">/</span> action
+          (`/pie` `/save` `/voice`).
+        </p>
+        <button
+          type="button"
+          className="ui-btn"
+          onClick={() =>
+            void speakWithPrefs('This is the voice that will speak replies after you send a voice message.', draft)
+          }
+        >
+          Preview voice
+        </button>
+      </Section>
+
+      <Section title="Conversation">
         <Toggle label="Auto-scroll chat" checked={draft.autoScroll} onChange={(autoScroll) => setDraft((p) => ({ ...p, autoScroll }))} />
-        <Toggle label="Browser speech-to-text" checked={draft.stt} onChange={(stt) => setDraft((p) => ({ ...p, stt }))} />
-        <Toggle label="Browser text-to-speech" checked={draft.tts} onChange={(tts) => setDraft((p) => ({ ...p, tts }))} />
-        <Toggle label="Auto-play spoken answers" checked={draft.ttsAutoplay} onChange={(ttsAutoplay) => setDraft((p) => ({ ...p, ttsAutoplay }))} />
+        <Toggle label="Browser speech-to-text (mic)" checked={draft.stt} onChange={(stt) => setDraft((p) => ({ ...p, stt }))} />
         <Toggle label="Resize images before upload" checked={draft.imageResize} onChange={(imageResize) => setDraft((p) => ({ ...p, imageResize }))} />
         <Toggle label="Long paste → attached note" checked={draft.longPaste} onChange={(longPaste) => setDraft((p) => ({ ...p, longPaste }))} />
         <Toggle label="24-hour clock" checked={draft.clock24h} onChange={(clock24h) => setDraft((p) => ({ ...p, clock24h }))} />
-        <label className="flex items-center justify-between gap-3 border border-slate-200 px-3 py-2 text-[13px]">
-          <span className="text-slate-600">Speech language</span>
-          <input
-            value={draft.speechLang}
-            onChange={(event) => setDraft((p) => ({ ...p, speechLang: event.target.value }))}
-            className="h-8 w-28 rounded border border-slate-200 px-2 text-right"
-          />
-        </label>
         <label className="flex items-center justify-between gap-3 border border-slate-200 px-3 py-2 text-[13px]">
           <span className="text-slate-600">Auto-send after speech (ms)</span>
           <input

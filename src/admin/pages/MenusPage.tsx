@@ -78,7 +78,7 @@ export function MenusPage({ onMessage }: { onMessage: (text: string) => void }) 
     <div className="space-y-4">
       <PageHead
         title="Menus"
-        subtitle="Left sidebar yahan se banti hai. Section add karo, phir uske andar menu / sub-menu items."
+        subtitle="Build the left sidebar here. Add a section, then add menu and submenu items inside it."
       />
 
       <section className="ui-card p-5">
@@ -190,7 +190,7 @@ export function MenusPage({ onMessage }: { onMessage: (text: string) => void }) 
                 ))}
               </Select>
             </Field>
-            <Field label="Parent menu" hint="Sub-level ke liye parent select karo. Five levels tak sidebar mein nested khulenge. Top-level ke liye empty chhodo.">
+            <Field label="Parent menu" hint="Select a parent for a nested item. The sidebar nests up to five levels. Leave empty for a top-level item.">
               <Select
                 value={form.parent_id || ''}
                 onChange={(event) => setForm((prev) => ({ ...prev, parent_id: event.target.value ? Number(event.target.value) : null }))}
@@ -214,14 +214,14 @@ export function MenusPage({ onMessage }: { onMessage: (text: string) => void }) 
                 ))}
               </Select>
             </Field>
-            <Field label="External URL" hint="Agar URL diya to click par naya tab khulega, canvas nahi.">
+            <Field label="External URL" hint="If set, a click opens this URL in a new tab instead of a canvas.">
               <TextInput
                 value={form.external_url || ''}
                 onChange={(event) => setForm((prev) => ({ ...prev, external_url: event.target.value }))}
                 placeholder="https://"
               />
             </Field>
-            <Field label="Canvas title" hint="Click par beech wale canvas ka heading.">
+            <Field label="Canvas title" hint="Heading shown on the canvas when this menu item is opened.">
               <TextInput value={form.canvas_title || ''} onChange={(event) => setForm((prev) => ({ ...prev, canvas_title: event.target.value }))} />
             </Field>
             <Field label="Canvas eyebrow">

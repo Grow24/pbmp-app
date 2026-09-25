@@ -61,7 +61,7 @@ export function AdminApp() {
           })}
         </nav>
         <div className="border-t border-slate-200 p-3 text-[11px] leading-relaxed text-slate-400">
-          Changes MySQL mein save hote hain. Workbench refresh karo to naya data dikhega.
+          Changes are saved to MySQL. Refresh the workbench to see the new data.
         </div>
       </aside>
 

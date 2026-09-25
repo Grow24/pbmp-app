@@ -46,7 +46,7 @@ export function GeneralPage({ onMessage }: { onMessage: (text: string) => void }
         }
       }}
     >
-      <PageHead title="General" subtitle="Brand, user, footer, default menu and chat welcome — yeh sab workbench header/footer par dikhte hain." />
+      <PageHead title="General" subtitle="Brand, user, footer, default menu, and chat welcome — these appear in the workbench header and footer." />
       {groups.map(([group, items]) => (
         <section key={group} className="ui-card p-5">
           <h2 className="mb-4 text-sm font-semibold text-slate-800">{titles[group] || group}</h2>

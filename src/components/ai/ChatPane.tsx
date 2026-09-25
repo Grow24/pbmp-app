@@ -1,15 +1,18 @@
-import { AtSign, Copy, GitFork, ImagePlus, Mic, MicOff, Pin, Plus, RefreshCw, Send, Volume2 } from 'lucide-react'
+import { AtSign, Copy, GitFork, Hash, ImagePlus, Mic, MicOff, Pin, Plus, RefreshCw, Send, Slash, Volume2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type ReactNode } from 'react'
+import { applyComposerMessage, flattenMenu, insertComposerTrigger } from '../../ai/composer'
 import { beginImageAttach, type DraftImage } from '../../ai/images'
-import { filterTeam, insertMentionTrigger, mentionQuery, mentionsInText } from '../../ai/mentions'
+import { mentionsInText } from '../../ai/mentions'
 import { InfoPathView } from './InfoPath'
 import { MarkdownView } from '../../ai/markdown'
-import { speakText, startBrowserStt, stopSpeaking } from '../../ai/speech'
+import { commandHelp, parseCommand } from '../../ai/commands'
+import { speakWithPrefs, startBrowserStt, stopSpeaking } from '../../ai/speech'
 import { useAi } from '../../context/AiContext'
 import { useWorkbench } from '../../context/WorkbenchContext'
+import { ComposerHintBar, ComposerPicker } from './ComposerPicker'
 
 export function ChatPane() {
-  const { canvas, settings, setRightTab } = useWorkbench()
+  const { canvas, settings, setRightTab, menuSections, selectItem } = useWorkbench()
   const {
     status,
     prefs,
@@ -26,6 +29,11 @@ export function ChatPane() {
     pinConversation,
     forkConversation,
     sendMessage,
+    addLocalExchange,
+    saveArtifact,
+    removeFromCanvas,
+    artifacts,
+    activeArtifact,
     binding,
     agents,
     agentSlug,
@@ -38,14 +46,15 @@ export function ChatPane() {
   const [image, setImage] = useState<DraftImage | null>(null)
   const [listening, setListening] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
-  const [mentionOpen, setMentionOpen] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const scroller = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const recRef = useRef<{ stop: () => void } | null>(null)
   const sendTimer = useRef<number>(0)
+  const voiceTurn = useRef(false)
   const taggedNow = useMemo(() => mentionsInText(draft, team), [draft, team])
-  const query = mentionQuery(draft)
-  const mentionMatches = filterTeam(team, query || '')
+  const canvases = useMemo(() => flattenMenu(menuSections), [menuSections])
+  const speak = (text: string) => void speakWithPrefs(text, prefs)
 
   const visible = messages.length
     ? messages
@@ -66,10 +75,23 @@ export function ChatPane() {
 
   useEffect(() => {
     const last = messages[messages.length - 1]
-    if (prefs.ttsAutoplay && prefs.tts && last?.role === 'assistant' && !streaming && last.text) {
-      speakText(last.text, prefs.speechLang)
-    }
-  }, [messages, prefs.speechLang, prefs.tts, prefs.ttsAutoplay, streaming])
+    if (!prefs.tts || !last || last.role !== 'assistant' || streaming || !last.text) return
+    const afterVoice = voiceTurn.current && prefs.voiceReplyAfterMic
+    if (!prefs.ttsAutoplay && !afterVoice) return
+    voiceTurn.current = false
+    speak(last.text)
+  }, [
+    messages,
+    prefs.speechLang,
+    prefs.speechVoice,
+    prefs.tts,
+    prefs.ttsAutoplay,
+    prefs.voiceReplyAfterMic,
+    prefs.ttsProvider,
+    prefs.ttsSpeed,
+    prefs.ttsCloudVoice,
+    streaming,
+  ])
 
   const clearImage = () => {
     image?.revoke()
@@ -85,6 +107,99 @@ export function ChatPane() {
     })
   }
 
+  const say = (line: string) => {
+    if (prefs.tts) speak(line)
+    return line
+  }
+
+  const runText = (raw: string, imagePayload?: { name: string; dataUrl: string }, replaceUserMessageId?: string) => {
+    const composed = applyComposerMessage(raw, agents)
+    if (composed.agent) void setAgent(composed.agent.slug)
+    const hash = raw.match(/#([A-Za-z0-9-]+)/)
+    const canvasHit = hash ? canvases.find((item) => item.id.toLowerCase() === hash[1].toLowerCase()) : undefined
+    if (canvasHit) selectItem(canvasHit.id)
+
+    const slashAction =
+      composed.slash?.action ||
+      (composed.slash?.open === 'dashboard'
+        ? 'dashboard'
+        : composed.slash?.open === 'all-chats'
+          ? 'all-chats'
+          : composed.slash?.open === 'artifacts'
+            ? 'artifacts'
+            : undefined)
+    const parsed = slashAction ? { kind: 'action' as const, action: slashAction } : parseCommand(composed.text)
+    if (parsed.kind === 'action') {
+      if (parsed.action === 'help') {
+        const text = commandHelp()
+        addLocalExchange(raw, text)
+        if (prefs.tts && (voiceTurn.current || prefs.ttsAutoplay)) speak(text)
+        return
+      }
+      if (parsed.action === 'stop-speak') {
+        stopSpeaking()
+        addLocalExchange(raw, say('Voice stopped.'))
+        return
+      }
+      if (parsed.action === 'speak-last') {
+        const last = [...messages].reverse().find((item) => item.role === 'assistant' && item.text)
+        if (last) speak(last.text)
+        else addLocalExchange(raw, say('There is no reply to speak yet.'))
+        return
+      }
+      if (parsed.action === 'save') {
+        const target = activeArtifact || artifacts[0]
+        if (!target) {
+          addLocalExchange(raw, say('Make a chart or diagram first, then say save.'))
+          return
+        }
+        if (target.savedContentId) {
+          addLocalExchange(raw, say('This is already saved to the canvas.'))
+          return
+        }
+        void saveArtifact(target.id)
+        addLocalExchange(raw, say('Saved to the canvas.'))
+        return
+      }
+      if (parsed.action === 'remove') {
+        const target = activeArtifact || artifacts.find((item) => item.savedContentId)
+        if (!target?.savedContentId) {
+          addLocalExchange(raw, say('No saved artifact to remove.'))
+          return
+        }
+        void removeFromCanvas(target.savedContentId)
+        addLocalExchange(raw, say('Removed from the canvas.'))
+        return
+      }
+      if (parsed.action === 'all-chats') {
+        setRightTab('all-chats')
+        addLocalExchange(raw, say('Opened All Chats.'))
+        return
+      }
+      if (parsed.action === 'artifacts') {
+        setRightTab('artifacts')
+        addLocalExchange(raw, say('Opened Artifacts.'))
+        return
+      }
+      if (parsed.action === 'dashboard') {
+        selectItem('dashboard')
+        addLocalExchange(raw, say('Opened Dashboard.'))
+        return
+      }
+      if (parsed.action === 'new-chat') {
+        void newChat(false)
+        say('Started a new chat.')
+        return
+      }
+    }
+    if (parsed.kind === 'ask') {
+      const message = canvasHit
+        ? `${parsed.message}\n\nFocus on the ${canvasHit.label} canvas (#${canvasHit.id}).`
+        : parsed.message
+      void sendMessage(message, imagePayload, replaceUserMessageId, composed.agent ? { agentSlug: composed.agent.slug } : undefined)
+    }
+  }
+
   const submit = (event?: FormEvent) => {
     event?.preventDefault()
     const text = draft.trim()
@@ -93,10 +208,10 @@ export function ChatPane() {
     const replaceId = editId
     setDraft('')
     setEditId(null)
-    setMentionOpen(false)
+    setPickerOpen(false)
     void (async () => {
       const dataUrl = pending ? pending.dataUrl || (await pending.ready) : ''
-      await sendMessage(text, pending ? { name: pending.name, dataUrl } : undefined, replaceId || undefined)
+      runText(text, pending ? { name: pending.name, dataUrl } : undefined, replaceId || undefined)
       pending?.revoke()
       setImage((prev) => (prev?.previewUrl === pending?.previewUrl ? null : prev))
     })()
@@ -128,13 +243,14 @@ export function ChatPane() {
       lang: prefs.speechLang,
       onText: (text, final) => {
         setDraft(text)
+        voiceTurn.current = true
         window.clearTimeout(sendTimer.current)
         if (final && prefs.autoSendMs > 0) {
           sendTimer.current = window.setTimeout(() => {
             const pending = image
             void (async () => {
               const dataUrl = pending ? pending.dataUrl || (await pending.ready) : ''
-              await sendMessage(text, pending ? { name: pending.name, dataUrl } : undefined)
+              runText(text, pending ? { name: pending.name, dataUrl } : undefined)
               pending?.revoke()
             })()
             setDraft('')
@@ -252,8 +368,8 @@ export function ChatPane() {
                 </>
               ) : (
                 <p className="text-[13px] leading-relaxed">
-                  {message.text.split(/(@[A-Za-z][A-Za-z .]+)/g).map((part, index) =>
-                    part.startsWith('@') ? (
+                  {message.text.split(/(@[A-Za-z][A-Za-z .]+|\$[A-Za-z0-9-]+|#[A-Za-z0-9-]+|\/[A-Za-z0-9-]+)/g).map((part, index) =>
+                    /^[@$#/]/.test(part) ? (
                       <span key={index} className="rounded bg-white/20 px-1 font-medium">
                         {part}
                       </span>
@@ -271,7 +387,10 @@ export function ChatPane() {
                   >
                     <Copy className="h-3 w-3" />
                   </IconBtn>
-                  <IconBtn label="Speak" onClick={() => (prefs.tts ? speakText(message.text, prefs.speechLang) : stopSpeaking())}>
+                  <IconBtn
+                    label="Speak"
+                    onClick={() => speak(message.text)}
+                  >
                     <Volume2 className="h-3 w-3" />
                   </IconBtn>
                   <IconBtn label="Branch" onClick={() => void forkConversation(message.id)}>
@@ -362,43 +481,40 @@ export function ChatPane() {
           attachFile(file)
         }}
       >
+        <ComposerHintBar
+          draft={draft}
+          onInsert={(mark) => {
+            setDraft((prev) => insertComposerTrigger(prev, mark))
+            setPickerOpen(true)
+          }}
+        />
         <textarea
           value={draft}
           onChange={(event) => {
             const value = event.target.value
+            voiceTurn.current = false
             setDraft(value)
-            setMentionOpen(mentionQuery(value) !== null)
+            setPickerOpen(true)
           }}
           onPaste={(event) => void onPaste(event)}
-          placeholder={editId ? 'Edit prompt and regenerate…' : 'Ask about this canvas, or @ to tag a teammate…'}
+          placeholder={editId ? 'Edit prompt and regenerate…' : '@Agent  $skill  #canvas  /command  or ask…'}
           rows={3}
           className="w-full resize-none rounded border border-slate-200 px-2.5 py-2 text-[13px] outline-none placeholder:text-slate-400 focus:border-brand-500"
         />
-        {mentionOpen && (
-          <div className="mt-1 overflow-hidden rounded border border-slate-200 bg-white text-[12px] shadow-sm">
-            <p className="border-b border-slate-100 px-2 py-1.5 text-[11px] text-slate-500">
-              Tag a teammate. Send posts a Highlight for them in this workbench — not email.
-            </p>
-            {mentionMatches.length ? (
-              mentionMatches.map((person) => (
-                <button
-                  key={person.id}
-                  type="button"
-                  className="flex w-full items-center justify-between px-2 py-1.5 text-left hover:bg-slate-50"
-                  onClick={() => {
-                    setDraft((prev) => prev.replace(/@([A-Za-z]*)$/, `@${person.name} `))
-                    setMentionOpen(false)
-                  }}
-                >
-                  <span className="font-medium text-slate-800">@{person.name}</span>
-                  <span className="text-slate-400">{person.role}</span>
-                </button>
-              ))
-            ) : (
-              <p className="px-2 py-1.5 text-slate-400">No teammate matches.</p>
-            )}
-          </div>
-        )}
+        {pickerOpen ? (
+          <ComposerPicker
+            draft={draft}
+            onChange={(next) => {
+              setDraft(next)
+              setPickerOpen(true)
+            }}
+            agents={agents}
+            team={team}
+            menuSections={menuSections}
+            onAgent={(slug) => void setAgent(slug)}
+            onCanvas={(id) => selectItem(id)}
+          />
+        ) : null}
         {taggedNow.length ? (
           <p className="mt-1.5 text-[11px] text-slate-500">
             Will post to Highlight for {taggedNow.map((person) => person.name).join(', ')}.
@@ -424,13 +540,46 @@ export function ChatPane() {
             <button
               type="button"
               className="ui-btn h-8 w-8 px-0"
-              title="Tag a teammate — posts a Highlight, not email"
+              title="@ Who — Agent or teammate"
               onClick={() => {
-                setDraft((prev) => insertMentionTrigger(prev))
-                setMentionOpen(true)
+                setDraft((prev) => insertComposerTrigger(prev, '@'))
+                setPickerOpen(true)
               }}
             >
               <AtSign className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              className="ui-btn h-8 w-8 px-0"
+              title="$ How — Skill"
+              onClick={() => {
+                setDraft((prev) => insertComposerTrigger(prev, '$'))
+                setPickerOpen(true)
+              }}
+            >
+              <span className="text-[13px] font-semibold">$</span>
+            </button>
+            <button
+              type="button"
+              className="ui-btn h-8 w-8 px-0"
+              title="# What — canvas"
+              onClick={() => {
+                setDraft((prev) => insertComposerTrigger(prev, '#'))
+                setPickerOpen(true)
+              }}
+            >
+              <Hash className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              className="ui-btn h-8 w-8 px-0"
+              title="/ Action — command"
+              onClick={() => {
+                setDraft((prev) => insertComposerTrigger(prev, '/'))
+                setPickerOpen(true)
+              }}
+            >
+              <Slash className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"

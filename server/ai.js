@@ -995,6 +995,47 @@ async function readOpenAiStream(body, onDelta) {
 export { parseArtifacts }
 
 export function registerAiRoutes(app) {
+  app.post('/api/ai/tts', async (req, res) => {
+    const config = aiConfig()
+    if (!config.configured) {
+      return res.status(400).json({ error: 'Cloud TTS needs AI_API_KEY.' })
+    }
+    const text = String(req.body?.text || '')
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/[#*_`>]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 4000)
+    if (!text) return res.status(400).json({ error: 'text is required' })
+    const allowed = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
+    const voice = allowed.includes(String(req.body?.voice || '')) ? String(req.body.voice) : 'alloy'
+    const speed = Math.min(4, Math.max(0.25, Number(req.body?.speed) || 1))
+    try {
+      const response = await fetch(`${config.base}/audio/speech`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${config.key}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: envFirst('AI_TTS_MODEL') || 'tts-1',
+          voice,
+          input: text,
+          speed,
+        }),
+      })
+      if (!response.ok) {
+        const detail = await response.text()
+        return res.status(502).json({ error: detail.slice(0, 400) || 'Cloud TTS failed' })
+      }
+      const buf = Buffer.from(await response.arrayBuffer())
+      res.setHeader('Content-Type', response.headers.get('content-type') || 'audio/mpeg')
+      res.send(buf)
+    } catch (err) {
+      res.status(502).json({ error: err.message || 'Cloud TTS failed' })
+    }
+  })
+
   app.get('/api/ai/status', (_req, res) => {
     const config = aiConfig()
     res.json({

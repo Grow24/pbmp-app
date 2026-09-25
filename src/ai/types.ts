@@ -81,13 +81,19 @@ export type AiStatus = {
 export type AiTheme = 'light' | 'dark' | 'slate' | 'warm'
 export type AiLayout = 'fixed' | 'movable'
 export type AiStartupEvent = 'none' | 'open-chat' | 'quote-canvas' | 'speak-title'
+export type TtsProvider = 'browser' | 'openai' | 'custom'
 
 export type AiPrefs = {
   autoScroll: boolean
   stt: boolean
   tts: boolean
+  ttsProvider: TtsProvider
+  ttsSpeed: number
+  ttsCloudVoice: string
   ttsAutoplay: boolean
+  voiceReplyAfterMic: boolean
   speechLang: string
+  speechVoice: string
   autoSendMs: number
   imageResize: boolean
   longPaste: boolean
