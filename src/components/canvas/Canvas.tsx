@@ -168,7 +168,7 @@ export function Canvas() {
       </div>
 
       <div className={`min-h-0 flex-1 overflow-auto p-4 sm:p-5 ${isDiagram ? 'canvas-grid' : 'bg-[#f5f7fa]'}`}>
-        {viewKind !== 'filter' && <PageFilters page={viewKind} />}
+        {viewKind !== 'filter' && viewKind !== 'device' && <PageFilters page={viewKind} />}
         <CanvasBody />
         {viewKind !== 'doc' && viewKind !== 'dashboard' && (uniqueSaved.length > 0 || artifacts.length > 0) && (
           <div className="mt-4 ui-card p-3">

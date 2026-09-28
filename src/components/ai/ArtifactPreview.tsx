@@ -3,6 +3,7 @@ import type { AiArtifact } from '../../ai/types'
 import type { ContentBlock } from '../../types'
 import { EChartPanel, parsePanelSpec } from './EChartPanel'
 import { EChartView } from './EChartView'
+import { MermaidView } from './MermaidView'
 
 export function artifactKindOf(item: ContentBlock) {
   return String(item.value || (typeof item.extra.kind === 'string' ? item.extra.kind : 'markdown'))
@@ -30,36 +31,9 @@ export function artifactFromContent(item: ContentBlock, siblings: ContentBlock[]
   }
 }
 
-function mermaidSrc(body: string) {
-  try {
-    const bytes = new TextEncoder().encode(body)
-    let binary = ''
-    bytes.forEach((code) => {
-      binary += String.fromCharCode(code)
-    })
-    return `https://mermaid.ink/svg/${btoa(binary)}`
-  } catch {
-    return ''
-  }
-}
-
 export function ArtifactPreview({ artifact, compact = false }: { artifact: AiArtifact; compact?: boolean }) {
   if (artifact.kind === 'mermaid') {
-    const src = mermaidSrc(artifact.body)
-    return (
-      <div className="space-y-2">
-        {src && (
-          <img
-            src={src}
-            alt={artifact.title}
-            className="max-h-[420px] w-full rounded border border-slate-200 bg-white object-contain"
-          />
-        )}
-        {!compact && (
-          <pre className="overflow-x-auto rounded bg-slate-50 p-2 text-[11px] text-slate-600">{artifact.body}</pre>
-        )}
-      </div>
-    )
+    return <MermaidView source={artifact.body} compact={compact} />
   }
 
   if (artifact.kind === 'echarts-panel' || parsePanelSpec(artifact.body)) {

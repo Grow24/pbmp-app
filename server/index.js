@@ -5,7 +5,7 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import { pool, waitForDb, ensureSchema, dbConfig } from './db.js'
-import { seedIfEmpty, seedFiltersIfEmpty, seedAgentBotMenu, seedNestedPlanningMenu, seedAiSettingsIfMissing, syncDefaultMenu } from './seed.js'
+import { seedIfEmpty, seedFiltersIfEmpty, seedAgentBotMenu, seedNestedPlanningMenu, seedAiSettingsIfMissing, seedDeviceManagerMenu, syncDefaultMenu } from './seed.js'
 import { registerAiRoutes } from './ai.js'
 
 dotenv.config()
@@ -502,6 +502,7 @@ async function start() {
   await seedAgentBotMenu()
   await seedNestedPlanningMenu()
   await seedAiSettingsIfMissing()
+  await seedDeviceManagerMenu()
   await syncDefaultMenu()
   app.listen(port, '0.0.0.0', () => {
     console.log(`PBMP API on http://0.0.0.0:${port}${seeded ? ' (seeded)' : ''}`)

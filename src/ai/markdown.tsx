@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { EChartPanel, parsePanelSpec } from '../components/ai/EChartPanel'
 import { EChartView } from '../components/ai/EChartView'
+import { MermaidView } from '../components/ai/MermaidView'
 
 function inline(text: string): ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g)
@@ -26,14 +27,21 @@ export function MarkdownView({ text }: { text: string }) {
   while (i < lines.length) {
     const line = lines[i]
     if (line.startsWith('```')) {
-      const lang = line.slice(3).trim()
+      const lang = line.slice(3).trim().toLowerCase()
       const body: string[] = []
       i += 1
       while (i < lines.length && !lines[i].startsWith('```')) {
         body.push(lines[i])
         i += 1
       }
-      if (lang === 'echarts' || lang === 'echart' || lang === 'echarts-panel' || lang === 'echart-panel') {
+      const looksMermaid = lang === 'mermaid' || (!lang && /^(graph|flowchart|sequenceDiagram|classDiagram|erDiagram|stateDiagram|journey|gantt|pie|mindmap)\b/.test(body[0] || ''))
+      if (looksMermaid) {
+        nodes.push(
+          <div key={`c-${i}`} className="my-2">
+            <MermaidView source={body.join('\n')} compact />
+          </div>,
+        )
+      } else if (lang === 'echarts' || lang === 'echart' || lang === 'echarts-panel' || lang === 'echart-panel') {
         const json = body.join('\n')
         nodes.push(
           <div key={`c-${i}`} className="my-2">

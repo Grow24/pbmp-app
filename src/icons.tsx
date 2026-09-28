@@ -10,6 +10,7 @@ import {
   FolderTree,
   Cloud,
   Compass,
+  Cpu,
   Database,
   FileText,
   FlipHorizontal2,
@@ -38,6 +39,7 @@ import {
 } from 'lucide-react'
 
 export const iconMap: Record<string, LucideIcon> = {
+  cpu: Cpu,
   dashboard: LayoutDashboard,
   filter: SlidersHorizontal,
   bot: Bot,

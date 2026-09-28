@@ -39,6 +39,7 @@ export const FILTER_PAGES: FilterPage[] = [
   { key: 'market', label: 'Market Dynamics', group: 'reports', fields: ['title', 'workspace', 'status'] },
   { key: 'doc', label: 'Strategy Doc', group: 'reports', fields: ['title', 'owner', 'status'] },
   { key: 'tool', label: 'Studio tools', group: 'studio', fields: ['title', 'workspace'] },
+  { key: 'device', label: 'Device manager', group: 'studio', fields: ['title'] },
   { key: 'account', label: 'Account', group: 'account', fields: ['title'] },
   { key: 'about', label: 'About', group: 'account', fields: ['title'] },
 ]

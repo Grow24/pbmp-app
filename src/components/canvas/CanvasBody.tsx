@@ -3,6 +3,7 @@ import { AboutView } from './views/AboutView'
 import { AccountView } from './views/AccountView'
 import { AssessView } from './views/AssessView'
 import { DashboardView } from './views/DashboardView'
+import { DeviceScanView } from './views/DeviceScanView'
 import { DocView } from './views/DocView'
 import { FilterView } from './views/FilterView'
 import { InquiryView } from './views/InquiryView'
@@ -31,6 +32,8 @@ export function CanvasBody() {
       return <SwotView />
     case 'doc':
       return <DocView />
+    case 'device':
+      return <DeviceScanView />
     case 'account':
       return <AccountView />
     case 'about':

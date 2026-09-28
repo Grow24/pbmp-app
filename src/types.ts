@@ -10,6 +10,7 @@ export type ViewKind =
   | 'swot'
   | 'doc'
   | 'tool'
+  | 'device'
   | 'account'
   | 'about'
   | 'highlight'

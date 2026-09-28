@@ -522,3 +522,50 @@ export async function seedNestedPlanningMenu() {
     }
   }
 }
+
+export async function seedDeviceManagerMenu() {
+  const [sections] = await pool.query("SELECT id FROM menu_sections WHERE slug = 'workspace' LIMIT 1")
+  if (!sections.length) return
+  const sectionId = sections[0].id
+  const item = {
+    slug: 'device-manager',
+    label: 'Device Manager',
+    icon: 'cpu',
+    sort: 20,
+    title: 'Device Manager',
+    eyebrow: 'Foundational service',
+    description:
+      'Scan what this browser can see of the local machine: CPU threads, RAM hint, GPU/WebGPU, WASM, display, storage, network, and media devices.',
+  }
+  const [existing] = await pool.query('SELECT id FROM menu_items WHERE slug = ? LIMIT 1', [item.slug])
+  let menuId = existing[0]?.id
+  if (menuId) {
+    await pool.query(
+      `UPDATE menu_items
+         SET label = ?, icon = ?, sort_order = ?, canvas_title = ?, canvas_eyebrow = ?, canvas_description = ?,
+             parent_id = NULL, section_id = ?, external_url = NULL
+       WHERE slug = ?`,
+      [item.label, item.icon, item.sort, item.title, item.eyebrow, item.description, sectionId, item.slug],
+    )
+  } else {
+    const [result] = await pool.query(
+      `INSERT INTO menu_items
+        (slug, section_id, parent_id, label, icon, sort_order, canvas_title, canvas_eyebrow, canvas_description, external_url)
+       VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, NULL)`,
+      [item.slug, sectionId, item.label, item.icon, item.sort, item.title, item.eyebrow, item.description],
+    )
+    menuId = result.insertId
+  }
+  const [tabs] = await pool.query('SELECT id FROM canvas_tabs WHERE menu_item_id = ? AND slug = ? LIMIT 1', [menuId, 'scan'])
+  if (!tabs.length) {
+    await pool.query('INSERT INTO canvas_tabs (slug, menu_item_id, label, view_kind, sort_order) VALUES (?,?,?,?,?)', [
+      'scan',
+      menuId,
+      'Scan',
+      'device',
+      1,
+    ])
+  } else {
+    await pool.query('UPDATE canvas_tabs SET label = ?, view_kind = ? WHERE id = ?', ['Scan', 'device', tabs[0].id])
+  }
+}
