@@ -217,4 +217,46 @@ export async function ensureSchema() {
   await addColumn('ai_conversations', 'subtab_slug', "subtab_slug VARCHAR(64) NOT NULL DEFAULT ''")
   await addColumn('ai_conversations', 'agent_slug', "agent_slug VARCHAR(64) NOT NULL DEFAULT 'general'")
   await addColumn('ai_messages', 'trace_json', 'trace_json JSON NULL')
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_skills (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      slug VARCHAR(64) NOT NULL UNIQUE,
+      label VARCHAR(120) NOT NULL,
+      hint VARCHAR(180) NOT NULL DEFAULT '',
+      prompt TEXT NOT NULL,
+      intent VARCHAR(32) NOT NULL DEFAULT 'ask',
+      sort_order INT NOT NULL DEFAULT 0,
+      is_active TINYINT NOT NULL DEFAULT 1
+    )
+  `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_agents (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      slug VARCHAR(64) NOT NULL UNIQUE,
+      name VARCHAR(120) NOT NULL,
+      role VARCHAR(180) NOT NULL DEFAULT '',
+      use_when TEXT NULL,
+      ask_text TEXT NULL,
+      instruction TEXT NULL,
+      sort_order INT NOT NULL DEFAULT 0,
+      is_active TINYINT NOT NULL DEFAULT 1
+    )
+  `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_teammates (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      slug VARCHAR(64) NOT NULL UNIQUE,
+      name VARCHAR(120) NOT NULL,
+      role VARCHAR(120) NOT NULL DEFAULT '',
+      sort_order INT NOT NULL DEFAULT 0,
+      is_active TINYINT NOT NULL DEFAULT 1
+    )
+  `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_runtime_config (
+      setting_key VARCHAR(64) PRIMARY KEY,
+      setting_value TEXT NOT NULL
+    )
+  `)
 }

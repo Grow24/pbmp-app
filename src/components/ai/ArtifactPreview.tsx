@@ -1,8 +1,10 @@
 import { MarkdownView } from '../../ai/markdown'
 import type { AiArtifact } from '../../ai/types'
 import type { ContentBlock } from '../../types'
+import { CodeRunner } from './CodeRunner'
 import { EChartPanel, parsePanelSpec } from './EChartPanel'
 import { EChartView } from './EChartView'
+import { HtmlFrame } from './HtmlFrame'
 import { MermaidView } from './MermaidView'
 
 export function artifactKindOf(item: ContentBlock) {
@@ -59,21 +61,18 @@ export function ArtifactPreview({ artifact, compact = false }: { artifact: AiArt
   }
 
   if (artifact.kind === 'html') {
-    return (
-      <iframe
-        title={artifact.title}
-        sandbox=""
-        srcDoc={artifact.body}
-        className="h-[360px] w-full rounded border border-slate-200 bg-white"
-      />
-    )
+    return <HtmlFrame title={artifact.title} html={artifact.body} />
+  }
+
+  if (artifact.kind === 'code' || artifact.kind === 'javascript') {
+    return <CodeRunner title={artifact.title} source={artifact.body} />
   }
 
   if (artifact.kind === 'svg') {
     return (
-      <div
-        className="rounded border border-slate-200 bg-white p-3"
-        dangerouslySetInnerHTML={{ __html: artifact.body }}
+      <HtmlFrame
+        title={artifact.title}
+        html={`<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:12px">${artifact.body}</body></html>`}
       />
     )
   }

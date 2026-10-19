@@ -3,9 +3,9 @@ import {
   composerTrigger,
   filterByQuery,
   flattenMenu,
-  PBMP_SKILLS,
   replaceComposerTrigger,
   SLASH_COMMANDS,
+  type SkillItem,
 } from '../../ai/composer'
 import type { AiAgent, AiTeammate } from '../../ai/types'
 import type { MenuSection } from '../../types'
@@ -14,6 +14,7 @@ type Props = {
   draft: string
   onChange: (next: string) => void
   agents: AiAgent[]
+  skills: SkillItem[]
   team: AiTeammate[]
   menuSections: MenuSection[]
   onAgent?: (slug: string) => void
@@ -62,7 +63,7 @@ function Hint({
   )
 }
 
-export function ComposerPicker({ draft, onChange, agents, team, menuSections, onAgent, onCanvas }: Props) {
+export function ComposerPicker({ draft, onChange, agents, skills, team, menuSections, onAgent, onCanvas }: Props) {
   const trigger = composerTrigger(draft)
   if (!trigger) return null
   const canvases = flattenMenu(menuSections)
@@ -98,7 +99,7 @@ export function ComposerPicker({ draft, onChange, agents, team, menuSections, on
   }
 
   if (trigger.kind === 'dollar') {
-    const hits = filterByQuery(PBMP_SKILLS, trigger.query, (item) => `${item.slug} ${item.label} ${item.hint}`)
+    const hits = filterByQuery(skills, trigger.query, (item) => `${item.slug} ${item.label} ${item.hint}`)
     return (
       <PickerShell title="$ How — Skill for this turn, shown as a chip like LibreChat.">
         {hits.map((skill) => (

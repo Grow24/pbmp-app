@@ -29,6 +29,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   bootstrap: () => request<BootstrapData>('/bootstrap'),
+  setHighlightStatus: (id: string, status: 'open' | 'done') =>
+    request<{ ok: boolean }>(`/highlights/${id}`, { method: 'PUT', body: JSON.stringify({ status }) }),
   settings: () => request<SettingRow[]>('/settings'),
   saveSettings: (values: Record<string, string>) =>
     request<SettingRow[]>('/settings', { method: 'PUT', body: JSON.stringify(values) }),

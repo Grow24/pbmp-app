@@ -1,57 +1,26 @@
 import { randomUUID } from 'node:crypto'
 import { dbConfig, pool } from './db.js'
-
-const PBMP_AGENTS = [
-  {
-    slug: 'general',
-    name: 'General assistant',
-    role: 'Default copilot for the open canvas',
-    useWhen: 'Everyday questions, walk the current tab, or you are not sure which lens to pick.',
-    ask: 'What does this canvas already show, and what should we open next?',
-    instruction: 'Answer as a general workbench copilot. Stay on the open canvas. Offer a short next step.',
-  },
-  {
-    slug: 'executive-analyst',
-    name: 'Executive Analyst',
-    role: 'Board summaries, KPIs, and decisions',
-    useWhen: 'Steering or leadership needs a short read: what matters, what is at risk, what to decide.',
-    ask: 'Give a board-ready summary of this canvas in five lines.',
-    instruction: 'Answer as an Executive Analyst. Prefer KPIs, decisions, risks, and a one-line recommendation. Skip process detail unless asked.',
-  },
-  {
-    slug: 'business-analyst',
-    name: 'Business Analyst',
-    role: 'AS-IS, process, and requirements',
-    useWhen: 'You are on Assess, Maps, or Inquiry and need the current-state story or a requirement.',
-    ask: 'Walk the AS-IS process and name the binding constraint.',
-    instruction: 'Answer as a Business Analyst. Focus on AS-IS process, ownership, requirements, and gaps on this canvas.',
-  },
-  {
-    slug: 'finance-analyst',
-    name: 'Finance Analyst',
-    role: 'Pricing, cost, and cycle time',
-    useWhen: 'The question is about price, margin, cycle time, or a number on the canvas.',
-    ask: 'Why is pricing the weak score, and what does that do to cycle time?',
-    instruction: 'Answer as a Finance Analyst. Ground every point in numbers on the canvas: price, cost, cycle time, leakage.',
-  },
-  {
-    slug: 'project-manager',
-    name: 'Project Manager',
-    role: 'Owners, risks, and next steps',
-    useWhen: 'You need who owns the work, what is blocked, and the next action this week.',
-    ask: 'Who owns the next step, and what is at risk if we miss Friday?',
-    instruction: 'Answer as a Project Manager. Name owners, dates, risks, and a concrete next step. Do not write strategy essays.',
-  },
-]
-
-const PBMP_TEAM = [
-  { id: 'priya', name: 'Priya Shah', role: 'Strategy lead' },
-  { id: 'arjun', name: 'Arjun Mehta', role: 'Growth' },
-  { id: 'nisha', name: 'Nisha Rao', role: 'Studio' },
-]
+import {
+  catalogSnapshot,
+  deleteAgent,
+  deleteSkill,
+  deleteTeammate,
+  publicCatalog,
+  runtimeOverrides,
+  runtimePublic,
+  saveAgent,
+  saveRuntime,
+  saveSkill,
+  saveTeammate,
+} from './catalog.js'
 
 function agentBySlug(slug) {
-  return PBMP_AGENTS.find((item) => item.slug === slug) || PBMP_AGENTS[0]
+  const agents = catalogSnapshot().agents.filter((item) => item.isActive !== false)
+  return agents.find((item) => item.slug === slug) || agents[0]
+}
+
+function activeTeam() {
+  return catalogSnapshot().team.filter((item) => item.isActive !== false)
 }
 
 function envFirst(...keys) {
@@ -164,11 +133,12 @@ function buildInfoPath({
 }
 
 function aiConfig() {
-  const base = envFirst('AI_BASE_URL', 'OPENAI_BASE_URL', 'LIBRECHAT_BASE_URL').replace(/\/$/, '')
-  const key = envFirst('AI_API_KEY', 'OPENAI_API_KEY', 'LIBRECHAT_API_KEY')
-  const model = envFirst('AI_MODEL', 'OPENAI_MODEL') || 'gpt-4o-mini'
+  const stored = runtimeOverrides()
+  const base = (envFirst('AI_BASE_URL', 'OPENAI_BASE_URL', 'LIBRECHAT_BASE_URL') || stored.base || 'https://api.openai.com/v1').replace(/\/$/, '')
+  const key = envFirst('AI_API_KEY', 'OPENAI_API_KEY', 'LIBRECHAT_API_KEY') || stored.key
+  const model = envFirst('AI_MODEL', 'OPENAI_MODEL') || stored.model || 'gpt-4o-mini'
   return {
-    base: base || 'https://api.openai.com/v1',
+    base,
     key,
     model,
     configured: Boolean(key),
@@ -416,13 +386,13 @@ function echartsTitle(body, fallback = 'EChart') {
 }
 
 function pushParsedArtifact(artifacts, seen, fenceKind, raw, fallbackTitle) {
-  if (fenceKind === 'mermaid' || fenceKind === 'html' || fenceKind === 'svg') {
+  if (fenceKind === 'mermaid' || fenceKind === 'html' || fenceKind === 'svg' || fenceKind === 'code') {
     const body = String(raw || '').trim()
     if (!body) return
     const key = `${fenceKind}:${body}`
     if (seen.has(key)) return
     seen.add(key)
-    artifacts.push({ kind: fenceKind, title: fallbackTitle, body })
+    artifacts.push({ kind: fenceKind, title: fenceKind === 'html' ? htmlHeading(body) : fallbackTitle, body })
     return
   }
   const panel = parseEchartsPanel(raw)
@@ -456,6 +426,7 @@ function parseArtifacts(text) {
     { kind: 'json', re: /```json\s*\n([\s\S]*?)```/gi, title: 'EChart' },
     { kind: 'html', re: /```html\s*\n([\s\S]*?)```/gi, title: 'Generated page' },
     { kind: 'svg', re: /```svg\s*\n([\s\S]*?)```/gi, title: 'SVG graphic' },
+    { kind: 'code', re: /```(?:javascript|js)\s*\n([\s\S]*?)```/gi, title: 'Runnable script' },
   ]
   for (const fence of fences) {
     let match
@@ -466,12 +437,23 @@ function parseArtifacts(text) {
       pushParsedArtifact(artifacts, seen, fence.kind, raw, fence.title)
     }
   }
-  const trailing = text.match(/```(mermaid|echarts-panel|echart-panel|echarts|echart|json|html|svg)\s*\n([\s\S]*)$/i)
+  const trailing = text.match(/```(mermaid|echarts-panel|echart-panel|echarts|echart|json|html|svg|javascript|js)\s*\n([\s\S]*)$/i)
   if (trailing && !/```/.test(trailing[2])) {
     const lang = trailing[1].toLowerCase()
-    const kind = lang === 'echart-panel' ? 'echarts-panel' : lang === 'echart' ? 'echarts' : lang
+    const kind =
+      lang === 'echart-panel' ? 'echarts-panel' : lang === 'echart' ? 'echarts' : lang === 'javascript' || lang === 'js' ? 'code' : lang
     const title =
-      kind === 'mermaid' ? 'Process diagram' : kind === 'echarts-panel' ? 'EChart panel' : kind === 'html' ? 'Generated page' : kind === 'svg' ? 'SVG graphic' : 'EChart'
+      kind === 'mermaid'
+        ? 'Process diagram'
+        : kind === 'echarts-panel'
+          ? 'EChart panel'
+          : kind === 'html'
+            ? 'Generated page'
+            : kind === 'svg'
+              ? 'SVG graphic'
+              : kind === 'code'
+                ? 'Runnable script'
+                : 'EChart'
     pushParsedArtifact(artifacts, seen, kind, trailing[2].trim(), title)
   }
   const prose = text.replace(/```[\s\S]*?```/g, '').replace(/^#{1,3} .+$/gm, '').trim()
@@ -825,15 +807,158 @@ function localChartReply({ title, view, blocks, imageLine, message, filters = []
     .join('\n')
 }
 
-function localAssistantReply({ message, context, imageName }) {
+function skillLine(context) {
+  const skill = catalogSnapshot().skills.find((item) => item.slug === context.skillSlug && item.isActive !== false)
+  if (!skill) return ''
+  return `The user selected the skill "${skill.label}" (${skill.intent}). Follow it: ${skill.prompt}`
+}
+
+function skillIntent(context, message) {
+  const skill = catalogSnapshot().skills.find((item) => item.slug === context.skillSlug && item.isActive !== false)
+  if (skill?.intent && skill.intent !== 'ask') return skill.intent
+  const text = String(message || '')
+  if (/top risks|who owns them|risk analysis|next action for each/i.test(text)) return 'risk'
+  if (/as-is|binding constraint|current-state process/i.test(text)) return 'as-is'
+  if (/pricing|leakage|cycle time|related scores/i.test(text)) return 'pricing'
+  if (wantsReport(text)) return 'report'
+  if (wantsDiagram(text)) return 'diagram'
+  if (wantsChart(text)) return 'chart'
+  return 'ask'
+}
+
+function imageFacts(dataUrl, name) {
+  if (!dataUrl || !String(dataUrl).startsWith('data:')) return ''
+  const match = String(dataUrl).match(/^data:([^;,]+);base64,([\s\S]+)$/)
+  if (!match) return ''
+  let buf
+  try {
+    buf = Buffer.from(match[2], 'base64')
+  } catch {
+    return ''
+  }
+  const mime = match[1]
+  const kb = Math.max(1, Math.round(buf.length / 1024))
+  let pixels = ''
+  if (mime === 'image/png' && buf.length >= 24 && buf.toString('ascii', 12, 16) === 'IHDR') {
+    pixels = `${buf.readUInt32BE(16)}×${buf.readUInt32BE(20)} px`
+  } else if ((mime === 'image/jpeg' || mime === 'image/jpg') && buf[0] === 0xff && buf[1] === 0xd8) {
+    let offset = 2
+    while (offset < buf.length - 8) {
+      if (buf[offset] !== 0xff) break
+      const marker = buf[offset + 1]
+      if (marker === 0xc0 || marker === 0xc1 || marker === 0xc2) {
+        pixels = `${buf.readUInt16BE(offset + 7)}×${buf.readUInt16BE(offset + 5)} px`
+        break
+      }
+      const length = buf.readUInt16BE(offset + 2)
+      if (length < 2) break
+      offset += 2 + length
+    }
+  }
+  const label = name ? `**${name}**` : 'the upload'
+  return `I read ${label} from its bytes: ${mime}, ${kb} KB${pixels ? `, ${pixels}` : ''}.`
+}
+
+function localRiskReply(title, blocks) {
+  const risks = blocks.filter((block) => /risk|alert|inquiry|constraint|block/i.test(`${block.type} ${block.title} ${block.body}`))
+  const rows = (risks.length ? risks : blocks.filter((block) => block.title)).slice(0, 5)
+  if (!rows.length) {
+    return `**${title}** has no risk or inquiry rows yet. Add one on the canvas, then ask for a risk analysis again.`
+  }
+  const lines = rows.map(
+    (block, index) =>
+      `${index + 1}. **${block.title || block.type}** — owner: ${block.subtitle || 'Unassigned'}. Next action: review this item on the canvas and set a date.`,
+  )
+  return [`Top risks on **${title}**:`, '', ...lines].join('\n')
+}
+
+function localAsIsReply(title, blocks) {
+  const nodes = blocks.filter((block) => block.type === 'map_node')
+  const steps = (nodes.length ? nodes : blocks.filter((block) => block.title)).slice(0, 6)
+  if (!steps.length) {
+    return `**${title}** has no process steps yet, so the AS-IS walk cannot name a binding constraint.`
+  }
+  const walk = steps.map((block, index) => `${index + 1}. ${block.title || block.subtitle || block.type}`)
+  const constraint =
+    steps.find((block) => /review|risk|block|constraint|gap/i.test(`${block.title} ${block.body} ${block.value}`)) ||
+    steps[steps.length - 1]
+  return [`AS-IS on **${title}**:`, '', ...walk, '', `Binding constraint: **${constraint.title || constraint.type}**.`].join('\n')
+}
+
+function localPricingReply(title, blocks) {
+  const rows = blocks.filter((block) => {
+    const blob = `${block.title} ${block.value} ${block.body}`
+    return /price|cost|cycle|score|margin|leak|%/i.test(blob) || (block.value && /\d/.test(String(block.value)))
+  })
+  if (!rows.length) {
+    return `**${title}** does not show pricing, cost, or score figures. The pricing lens needs those numbers on the canvas.`
+  }
+  const lines = rows.slice(0, 6).map((block) => {
+    const figure = block.value || String(block.body || '').slice(0, 120)
+    return `- **${block.title || block.type}:** ${figure || 'no figure stored'}`
+  })
+  return [`Pricing lens on **${title}**, using only figures on this canvas:`, '', ...lines].join('\n')
+}
+
+function htmlHeading(body) {
+  const match = String(body).match(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i)
+  if (!match) return 'Generated page'
+  const text = match[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+  return text.slice(0, 80) || 'Generated page'
+}
+
+function runnablePieces(message) {
+  const text = String(message || '').trim()
+  if (!text) return []
+  const fenced = parseArtifacts(text).filter((item) => item.kind === 'html' || item.kind === 'svg' || item.kind === 'code')
+  if (fenced.length) {
+    return fenced.map((item) => (item.kind === 'html' ? { ...item, title: htmlHeading(item.body) } : item))
+  }
+  const lines = text.split('\n')
+  const start = lines.findIndex((line) => /^\s*</.test(line))
+  if (start >= 0) {
+    const slice = lines.slice(start).join('\n').trim()
+    if (/<\/[a-z0-9]+>/i.test(slice) && /<(h\d|p|div|button|section|article|html|svg|table|ul|ol|span)\b/i.test(slice)) {
+      return [{ kind: 'html', title: htmlHeading(slice), body: slice }]
+    }
+  }
+  if (/(document\.|console\.|getElementById|querySelector|innerHTML)/.test(text) && /(const |let |var |function |=>)/.test(text)) {
+    return [{ kind: 'code', title: 'Runnable script', body: text }]
+  }
+  return []
+}
+
+function fenceFor(item) {
+  const lang = item.kind === 'code' ? 'javascript' : item.kind
+  return `\`\`\`${lang}\n${item.body}\n\`\`\``
+}
+
+function runnableReply(message) {
+  const pieces = runnablePieces(message)
+  if (!pieces.length) return ''
+  const hasHtml = pieces.some((item) => item.kind === 'html')
+  const note = hasHtml
+    ? 'The HTML page is open in **Artifacts**. The heading, text, and button render there. Click the button and its label changes. **Save to canvas** pins the same page on the board.'
+    : 'The script is running in **Artifacts**. The result and console.log show on that card. **Save to canvas** pins it on the board.'
+  return [note, '', ...pieces.map(fenceFor)].join('\n')
+}
+
+function localAssistantReply({ message, context, imageName, imageData }) {
+  const supplied = runnableReply(message)
+  if (supplied) return supplied
   const title = context.title || 'this canvas'
   const view = context.tab || context.viewKind || 'current view'
   const blocks = Array.isArray(context.blocks) ? context.blocks : []
   const nodes = blocks.filter((block) => block.type === 'map_node')
   const alerts = blocks.filter((block) => /alert|risk|inquiry/i.test(String(block.type || '')))
   const capabilities = blocks.filter((block) => block.type === 'capability')
+  const measured = imageFacts(imageData, imageName)
   const imageLine = imageName
-    ? `I received the image **${imageName}**. ${aiConfig().configured ? '' : 'A vision-capable model is not configured, so I am reading the filename plus the open canvas rather than pixels. '}`
+    ? `${measured || `I received the image **${imageName}**.`} ${
+        aiConfig().configured
+          ? 'The configured model also receives the image bytes.'
+          : 'No model key is saved, so this reply uses those measured bytes plus the open canvas. Add the key in Admin → AI catalog to have a vision model describe the picture.'
+      }`
     : ''
 
   const steps = nodes.length
@@ -863,11 +988,15 @@ function localAssistantReply({ message, context, imageName }) {
   ].join('\n')
 
   const chart = localChartReply({ title, view, blocks, imageLine, message, filters: context.filters })
+  const intent = skillIntent(context, message)
+  if (intent === 'risk') return [imageLine, localRiskReply(title, blocks)].filter(Boolean).join('\n\n')
+  if (intent === 'as-is') return [imageLine, localAsIsReply(title, blocks)].filter(Boolean).join('\n\n')
+  if (intent === 'pricing') return [imageLine, localPricingReply(title, blocks)].filter(Boolean).join('\n\n')
   const parts = []
-  if (wantsReport(message)) parts.push(report)
-  if (wantsDiagram(message)) parts.push(diagram)
-  if (wantsChart(message)) parts.push(chart)
-  if (parts.length) return parts.join('\n\n---\n\n')
+  if (intent === 'report' || wantsReport(message)) parts.push(report)
+  if (intent === 'diagram' || wantsDiagram(message)) parts.push(diagram)
+  if (intent === 'chart' || wantsChart(message)) parts.push(chart)
+  if (parts.length) return parts.filter(Boolean).join('\n\n---\n\n')
 
   const seen = new Set()
   const highlights = [...alerts, ...capabilities, ...blocks]
@@ -942,9 +1071,10 @@ function buildModelMessages({ history, context, message, imageData }) {
     'When asked for a chart, EChart, bar, pie, line, radar, funnel, gauge, scatter or heatmap, include a ```echarts fenced block (one Apache ECharts option as JSON only — no comments, no functions).',
     'When asked for a panel, dashboard of charts, or multiple chart types together, include one ```echarts-panel fenced block: { "panel": true, "title": "...", "charts": [ { "type": "bar", "title": "Bar", "option": { ... } }, ... ] }. The workbench renders those types in one panel. Use numbers from the canvas facts after any active page filters.',
     'Keep everyday answers concise unless the user asks for a full write-up.',
+    skillLine(context),
     '',
     summarizeContext(context),
-  ].join('\n')
+  ].filter(Boolean).join('\n')
 
   const prior = history
     .filter((item) => item.role === 'user' || item.role === 'assistant')
@@ -1068,17 +1198,99 @@ export function registerAiRoutes(app) {
       trail: resolved.trail,
       conversations,
       boundConversationId: bound?.id || null,
-      agents: PBMP_AGENTS,
-      team: PBMP_TEAM,
+      ...publicCatalog(),
     })
   })
 
   app.get('/api/ai/agents', (_req, res) => {
-    res.json(PBMP_AGENTS)
+    res.json(publicCatalog().agents)
   })
 
   app.get('/api/ai/team', (_req, res) => {
-    res.json(PBMP_TEAM)
+    res.json(publicCatalog().team)
+  })
+
+  app.get('/api/ai/catalog', (req, res) => {
+    if (req.query.all === '1') return res.json(catalogSnapshot())
+    res.json(publicCatalog())
+  })
+
+  app.post('/api/ai/agents', async (req, res) => {
+    try {
+      await saveAgent(req.body || {})
+      res.status(201).json(catalogSnapshot().agents)
+    } catch (error) {
+      res.status(400).json({ error: error.message })
+    }
+  })
+
+  app.put('/api/ai/agents/:id', async (req, res) => {
+    try {
+      await saveAgent(req.body || {}, Number(req.params.id))
+      res.json(catalogSnapshot().agents)
+    } catch (error) {
+      res.status(400).json({ error: error.message })
+    }
+  })
+
+  app.delete('/api/ai/agents/:id', async (req, res) => {
+    await deleteAgent(Number(req.params.id))
+    res.json(catalogSnapshot().agents)
+  })
+
+  app.post('/api/ai/skills', async (req, res) => {
+    try {
+      await saveSkill(req.body || {})
+      res.status(201).json(catalogSnapshot().skills)
+    } catch (error) {
+      res.status(400).json({ error: error.message })
+    }
+  })
+
+  app.put('/api/ai/skills/:id', async (req, res) => {
+    try {
+      await saveSkill(req.body || {}, Number(req.params.id))
+      res.json(catalogSnapshot().skills)
+    } catch (error) {
+      res.status(400).json({ error: error.message })
+    }
+  })
+
+  app.delete('/api/ai/skills/:id', async (req, res) => {
+    await deleteSkill(Number(req.params.id))
+    res.json(catalogSnapshot().skills)
+  })
+
+  app.post('/api/ai/team', async (req, res) => {
+    try {
+      await saveTeammate(req.body || {})
+      res.status(201).json(catalogSnapshot().team)
+    } catch (error) {
+      res.status(400).json({ error: error.message })
+    }
+  })
+
+  app.put('/api/ai/team/:id', async (req, res) => {
+    try {
+      await saveTeammate(req.body || {}, Number(req.params.id))
+      res.json(catalogSnapshot().team)
+    } catch (error) {
+      res.status(400).json({ error: error.message })
+    }
+  })
+
+  app.delete('/api/ai/team/:id', async (req, res) => {
+    await deleteTeammate(Number(req.params.id))
+    res.json(catalogSnapshot().team)
+  })
+
+  app.get('/api/ai/runtime', (_req, res) => {
+    res.json(runtimePublic())
+  })
+
+  app.put('/api/ai/runtime', async (req, res) => {
+    await saveRuntime(req.body || {})
+    res.json(runtimePublic())
   })
 
   app.get('/api/ai/projects', async (_req, res) => {
@@ -1202,6 +1414,7 @@ export function registerAiRoutes(app) {
       tabSlug = '',
       subtabSlug = '',
       agentSlug = 'general',
+      skillSlug = '',
       title,
       message,
       image,
@@ -1245,7 +1458,7 @@ export function registerAiRoutes(app) {
       }
     }
 
-    const tagged = PBMP_TEAM.filter((person) =>
+    const tagged = activeTeam().filter((person) =>
       mentions.includes(person.id) || trimmed.toLowerCase().includes(`@${person.name.toLowerCase()}`),
     )
 
@@ -1270,7 +1483,7 @@ export function registerAiRoutes(app) {
             person.name,
             trimmed.slice(0, 400),
             'just now',
-            JSON.stringify({ tone: 'action', mention: person.id, from }),
+            JSON.stringify({ tone: 'action', mention: person.id, from, status: 'open', assignee: person.name }),
           ],
         )
       }
@@ -1311,7 +1524,7 @@ export function registerAiRoutes(app) {
         const body = await streamOpenAi({
           messages: buildModelMessages({
             history: history.filter((item) => item.id !== assistantId),
-            context: { ...context, agentSlug },
+            context: { ...context, agentSlug, skillSlug },
             message: trimmed,
             imageData: image?.dataUrl,
           }),
@@ -1324,18 +1537,31 @@ export function registerAiRoutes(app) {
         writeEvent(res, { type: 'path', path: infoPath })
         full = localAssistantReply({
           message: trimmed,
-          context: { ...context, agentSlug },
+          context: { ...context, agentSlug, skillSlug },
           imageName: image?.name,
+          imageData: image?.dataUrl,
         })
         await streamText(res, full)
       }
     } catch (error) {
       infoPath = buildInfoPath({ ...pathArgs, usedRemote: false, fallbackError: error.message })
       writeEvent(res, { type: 'path', path: infoPath })
-      const fallback = localAssistantReply({ message: trimmed, context, imageName: image?.name })
+      const fallback = localAssistantReply({
+        message: trimmed,
+        context: { ...context, agentSlug, skillSlug },
+        imageName: image?.name,
+        imageData: image?.dataUrl,
+      })
       const note = `I could not reach the configured model (${error.message}). Continuing with the canvas-aware assistant.\n\n`
       full = note + fallback
       await streamText(res, full)
+    }
+
+    const supplied = runnableReply(trimmed)
+    if (supplied && !runnablePieces(trimmed).every((item) => full.includes(item.body))) {
+      const extra = `\n\n${supplied}`
+      full += extra
+      await streamText(res, extra)
     }
 
     await pool.query(

@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, FileText, LayoutList, PanelsTopLeft, Settings2, Highlighter } from 'lucide-react'
+import { ArrowLeft, Bot, FileText, LayoutList, PanelsTopLeft, Settings2, Highlighter } from 'lucide-react'
 import { GeneralPage } from './pages/GeneralPage'
 import { MenusPage } from './pages/MenusPage'
 import { TabsPage } from './pages/TabsPage'
 import { ContentPage } from './pages/ContentPage'
+import { AiCatalogPage } from './pages/AiCatalogPage'
 
-type Page = 'general' | 'menus' | 'tabs' | 'content'
+type Page = 'general' | 'menus' | 'tabs' | 'content' | 'ai'
 
 const NAV: { id: Page; label: string; hint: string; icon: typeof Settings2 }[] = [
   { id: 'general', label: 'General', hint: 'Brand, user, footer', icon: Settings2 },
   { id: 'menus', label: 'Menus', hint: 'Left sidebar tree', icon: LayoutList },
   { id: 'tabs', label: 'Canvas tabs', hint: 'Tabs and sub-tabs', icon: PanelsTopLeft },
   { id: 'content', label: 'Page content', hint: 'Cards, KPIs, SWOT', icon: FileText },
+  { id: 'ai', label: 'AI catalog', hint: 'Skills, agents, model', icon: Bot },
 ]
 
 export function AdminApp() {
@@ -81,6 +83,7 @@ export function AdminApp() {
           {page === 'menus' && <MenusPage onMessage={setMessage} />}
           {page === 'tabs' && <TabsPage onMessage={setMessage} />}
           {page === 'content' && <ContentPage onMessage={setMessage} />}
+          {page === 'ai' && <AiCatalogPage onMessage={setMessage} />}
         </main>
       </div>
 

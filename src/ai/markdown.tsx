@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
+import { CodeRunner } from '../components/ai/CodeRunner'
 import { EChartPanel, parsePanelSpec } from '../components/ai/EChartPanel'
 import { EChartView } from '../components/ai/EChartView'
+import { HtmlFrame } from '../components/ai/HtmlFrame'
 import { MermaidView } from '../components/ai/MermaidView'
 
 function inline(text: string): ReactNode[] {
@@ -50,6 +52,27 @@ export function MarkdownView({ text }: { text: string }) {
             ) : (
               <EChartView optionJson={json} height={300} />
             )}
+          </div>,
+        )
+      } else if (lang === 'html') {
+        nodes.push(
+          <div key={`c-${i}`} className="my-2">
+            <HtmlFrame title="HTML artifact" html={body.join('\n')} />
+          </div>,
+        )
+      } else if (lang === 'svg') {
+        nodes.push(
+          <div key={`c-${i}`} className="my-2">
+            <HtmlFrame
+              title="SVG artifact"
+              html={`<!DOCTYPE html><html><body style="margin:12px">${body.join('\n')}</body></html>`}
+            />
+          </div>,
+        )
+      } else if (lang === 'javascript' || lang === 'js') {
+        nodes.push(
+          <div key={`c-${i}`} className="my-2">
+            <CodeRunner title="Script" source={body.join('\n')} />
           </div>,
         )
       } else {

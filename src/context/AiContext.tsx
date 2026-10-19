@@ -12,6 +12,7 @@ import { applyTheme, prefsFromSettings, prefsToSettings } from '../ai/prefs'
 import { speakWithPrefs } from '../ai/speech'
 import type { AiAgent, AiArtifact, AiConversation, AiMessage, AiPrefs, AiProject, AiStartupEvent, AiStatus, AiTeammate, InfoPath } from '../ai/types'
 import { PBMP_AGENTS, PBMP_TEAM } from '../ai/catalog'
+import { PBMP_SKILLS } from '../ai/composer'
 import { aiApi, type ChatContextPayload } from '../lib/aiApi'
 import { api } from '../lib/api'
 import { filtersForPage } from '../components/filter/scope'
@@ -52,7 +53,7 @@ type AiContextValue = {
     text: string,
     image?: { name: string; dataUrl: string },
     replaceUserMessageId?: string,
-    extras?: { agentSlug?: string },
+    extras?: { agentSlug?: string; skillSlug?: string },
   ) => Promise<void>
   addLocalExchange: (userText: string, assistantText: string) => void
   saveArtifact: (id: string) => Promise<void>
@@ -60,6 +61,7 @@ type AiContextValue = {
   searchConversations: (q: string) => Promise<AiConversation[]>
   createProject: (name: string) => Promise<void>
   agents: AiAgent[]
+  skills: typeof PBMP_SKILLS
   team: AiTeammate[]
   agentSlug: string
   setAgent: (slug: string) => Promise<void>
@@ -116,6 +118,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
   const [quote, setQuote] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [agents, setAgents] = useState<AiAgent[]>([...PBMP_AGENTS])
+  const [skills, setSkills] = useState(PBMP_SKILLS)
   const [team, setTeam] = useState<AiTeammate[]>([...PBMP_TEAM])
   const [agentSlug, setAgentSlug] = useState('general')
   const [lastTagged, setLastTagged] = useState<AiTeammate[]>([])
@@ -138,6 +141,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
     const listed = await aiApi.allConversations(showArchived).catch(() => [] as AiConversation[])
     setAllChats(listed)
     if (data.agents?.length) setAgents(data.agents)
+    if (data.skills?.length) setSkills(data.skills)
     if (data.team?.length) setTeam(data.team)
     const bound = data.conversations.find((item) => item.id === data.boundConversationId)
     if (bound) {
@@ -278,7 +282,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
   }, [setRightOpen, setRightTab])
 
   const sendMessage = useCallback(
-    async (text: string, image?: { name: string; dataUrl: string }, replaceUserMessageId?: string, extras?: { agentSlug?: string }) => {
+    async (text: string, image?: { name: string; dataUrl: string }, replaceUserMessageId?: string, extras?: { agentSlug?: string; skillSlug?: string }) => {
       if (!project) return
       const trimmed = text.trim()
       if (!trimmed && !image) return
@@ -320,6 +324,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
         subtab: activeSubtab?.label,
         viewKind,
         agentSlug: usedAgent,
+        skillSlug: extras?.skillSlug,
         blocks: canvasBlocks(onFilters.length ? filterItems(blocks()) : blocks()),
         filters: onFilters.map((filter) => filter.name),
       }
@@ -593,6 +598,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
       searchConversations,
       createProject,
       agents,
+      skills,
       team,
       agentSlug,
       setAgent,
@@ -607,6 +613,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
       artifacts,
       agentSlug,
       agents,
+      skills,
       binding,
       allChats,
       conversation,

@@ -63,6 +63,7 @@ export type HighlightItem = {
   tone: 'insight' | 'risk' | 'action'
   mentionId?: string
   from?: string
+  status?: string
 }
 
 export type ContentBlock = {

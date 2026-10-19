@@ -1,10 +1,12 @@
 import { Bell, CalendarDays, Menu, Search, SlidersHorizontal } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { prefsFromSettings } from '../../ai/prefs'
+import { api } from '../../lib/api'
 import { useWorkbench } from '../../context/WorkbenchContext'
 
 export function Header() {
-  const { search, setSearch, setMobileNavOpen, settings } = useWorkbench()
+  const { search, setSearch, setMobileNavOpen, settings, highlights, reload, setRightOpen, setRightTab } = useWorkbench()
+  const [notesOpen, setNotesOpen] = useState(false)
   const prefs = prefsFromSettings(settings)
   const [now, setNow] = useState(() => new Date())
 
@@ -12,6 +14,8 @@ export function Header() {
     const timer = window.setInterval(() => setNow(new Date()), 30000)
     return () => window.clearInterval(timer)
   }, [])
+
+  const assignments = highlights.filter((item) => item.mentionId && item.status !== 'done')
 
   const clock = new Intl.DateTimeFormat(undefined, {
     hour: 'numeric',
@@ -70,14 +74,59 @@ export function Header() {
           <SlidersHorizontal className="h-3.5 w-3.5" />
           Admin
         </a>
-        <button
-          type="button"
-          className="relative inline-flex h-8 w-8 items-center justify-center rounded text-slate-500 hover:bg-slate-100"
-          aria-label="Notifications"
-        >
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-red-500" />
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            className="relative inline-flex h-8 w-8 items-center justify-center rounded text-slate-500 hover:bg-slate-100"
+            aria-label="Notifications"
+            onClick={() => setNotesOpen((open) => !open)}
+          >
+            <Bell className="h-4 w-4" />
+            {assignments.length ? (
+              <span className="absolute right-1 top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-semibold text-white">
+                {assignments.length}
+              </span>
+            ) : null}
+          </button>
+          {notesOpen ? (
+            <div className="absolute right-0 top-9 z-30 w-80 rounded border border-slate-200 bg-white p-2 shadow-lg">
+              <p className="px-1 py-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">Assignments</p>
+              {assignments.length ? (
+                assignments.map((item) => (
+                  <div key={item.id} className="border-t border-slate-100 px-1 py-2">
+                    <p className="text-[12px] font-medium text-slate-800">{item.title}</p>
+                    <p className="mt-0.5 line-clamp-2 text-[12px] text-slate-600">{item.note}</p>
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-slate-400">{item.author}</span>
+                      <button
+                        type="button"
+                        className="text-[11px] font-medium text-brand-600"
+                        onClick={() => {
+                          void api.setHighlightStatus(item.id, 'done').then(() => reload())
+                        }}
+                      >
+                        Mark done
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="px-1 py-2 text-[12px] text-slate-500">No open assignments. Tag a teammate with @ in Conversation.</p>
+              )}
+              <button
+                type="button"
+                className="mt-1 w-full rounded px-1 py-1 text-left text-[11px] text-slate-500 hover:bg-slate-50"
+                onClick={() => {
+                  setRightTab('highlight')
+                  setRightOpen(true)
+                  setNotesOpen(false)
+                }}
+              >
+                Open Highlight
+              </button>
+            </div>
+          ) : null}
+        </div>
         <div className="ml-1 flex items-center gap-2 border-l border-slate-200 pl-3">
           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-500 text-[11px] font-semibold text-white">
             {settings.user_initials || 'PS'}

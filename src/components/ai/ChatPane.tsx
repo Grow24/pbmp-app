@@ -36,6 +36,7 @@ export function ChatPane() {
     activeArtifact,
     binding,
     agents,
+    skills,
     agentSlug,
     setAgent,
     team,
@@ -116,7 +117,7 @@ export function ChatPane() {
   }
 
   const runText = (raw: string, imagePayload?: { name: string; dataUrl: string }, replaceUserMessageId?: string) => {
-    const composed = applyComposerMessage(raw, agents)
+    const composed = applyComposerMessage(raw, agents, skills)
     if (composed.agent) void setAgent(composed.agent.slug)
     const hash = raw.match(/#([A-Za-z0-9-]+)/)
     const canvasHit = hash ? canvases.find((item) => item.id.toLowerCase() === hash[1].toLowerCase()) : undefined
@@ -199,7 +200,10 @@ export function ChatPane() {
       const message = canvasHit
         ? `${parsed.message}\n\nFocus on the ${canvasHit.label} canvas (#${canvasHit.id}).`
         : parsed.message
-      void sendMessage(message, imagePayload, replaceUserMessageId, composed.agent ? { agentSlug: composed.agent.slug } : undefined)
+      void sendMessage(message, imagePayload, replaceUserMessageId, {
+        agentSlug: composed.agent?.slug,
+        skillSlug: composed.skill?.slug,
+      })
     }
   }
 
@@ -550,6 +554,7 @@ export function ChatPane() {
               setPickerOpen(true)
             }}
             agents={agents}
+            skills={skills}
             team={team}
             menuSections={menuSections}
             onAgent={(slug) => void setAgent(slug)}

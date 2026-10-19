@@ -117,10 +117,10 @@ export function insertComposerTrigger(text: string, mark: '@' | '$' | '#' | '/')
   return `${text}${text && !/\s$/.test(text) ? ' ' : ''}${mark}`
 }
 
-export function applyComposerMessage(raw: string, agents: AiAgent[]) {
+export function applyComposerMessage(raw: string, agents: AiAgent[], skills: SkillItem[] = PBMP_SKILLS) {
   let text = raw.trim()
   const skillMatch = text.match(/\$([a-z0-9-]+)/i)
-  const skill = skillMatch ? PBMP_SKILLS.find((item) => item.slug === skillMatch[1].toLowerCase()) : undefined
+  const skill = skillMatch ? skills.find((item) => item.slug === skillMatch[1].toLowerCase()) : undefined
   const slashMatch = text.match(/(?:^|\s)\/([a-z0-9-]+)\b/i)
   const slash = slashMatch ? SLASH_COMMANDS.find((item) => item.token === slashMatch[1].toLowerCase()) : undefined
   const agentHit = agents.find((agent) => text.toLowerCase().includes(`@${agent.name.toLowerCase()}`))

@@ -213,6 +213,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
         tone: (String(item.extra.tone || 'insight') as HighlightItem['tone']),
         mentionId: item.extra.mention ? String(item.extra.mention) : undefined,
         from: item.extra.from ? String(item.extra.from) : undefined,
+        status: item.extra.status ? String(item.extra.status) : item.extra.mention ? 'open' : undefined,
       })),
     [data],
   )

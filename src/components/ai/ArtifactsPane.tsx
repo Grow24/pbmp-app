@@ -8,7 +8,7 @@ export function ArtifactsPane() {
   if (!artifacts.length) {
     return (
       <div className="p-4 text-[13px] leading-relaxed text-slate-500">
-        Ask in Chat for a board summary, a process diagram, or an EChart (bar, pie, line, radar, funnel, gauge, scatter, heatmap). Live charts and Mermaid diagrams appear here — then Resize or Save to canvas.
+        Ask in Chat for a board summary, a process diagram, an EChart, an HTML page, or a JavaScript block. Charts, diagrams, HTML, and scripts render here, then Resize or Save to canvas.
       </div>
     )
   }

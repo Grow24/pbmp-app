@@ -6,6 +6,7 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import { pool, waitForDb, ensureSchema, dbConfig } from './db.js'
 import { seedIfEmpty, seedFiltersIfEmpty, seedAgentBotMenu, seedNestedPlanningMenu, seedAiSettingsIfMissing, seedDeviceManagerMenu, syncDefaultMenu } from './seed.js'
+import { seedAiCatalog } from './catalog.js'
 import { registerAiRoutes } from './ai.js'
 
 dotenv.config()
@@ -418,6 +419,16 @@ app.post('/api/content/reorder', async (req, res) => {
   res.json({ ok: true })
 })
 
+app.put('/api/highlights/:id', async (req, res) => {
+  const id = Number(req.params.id)
+  const [rows] = await pool.query("SELECT * FROM content_items WHERE id = ? AND block_type = 'highlight'", [id])
+  if (!rows[0]) return res.status(404).json({ error: 'Highlight not found' })
+  const extra = parseExtra(rows[0].extra_json)
+  extra.status = req.body?.status === 'done' ? 'done' : 'open'
+  await pool.query('UPDATE content_items SET extra_json = ? WHERE id = ?', [JSON.stringify(extra), id])
+  res.json({ ok: true, id, status: extra.status })
+})
+
 app.get('/api/filters', async (_req, res) => {
   res.json(await loadFilters())
 })
@@ -504,6 +515,7 @@ async function start() {
   await seedAiSettingsIfMissing()
   await seedDeviceManagerMenu()
   await syncDefaultMenu()
+  await seedAiCatalog()
   app.listen(port, '0.0.0.0', () => {
     console.log(`PBMP API on http://0.0.0.0:${port}${seeded ? ' (seeded)' : ''}`)
   })

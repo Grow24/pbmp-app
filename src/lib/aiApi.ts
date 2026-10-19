@@ -1,3 +1,4 @@
+import type { SkillItem } from '../ai/composer'
 import type { AiArtifact, AiConversation, AiMessage, AiProject, AiStatus, AiAgent, AiTeammate } from '../ai/types'
 
 export type WorkspacePayload = {
@@ -8,6 +9,7 @@ export type WorkspacePayload = {
   conversations: AiConversation[]
   boundConversationId?: string | null
   agents?: AiAgent[]
+  skills?: SkillItem[]
   team?: AiTeammate[]
 }
 
@@ -25,6 +27,7 @@ export type ChatContextPayload = {
   subtab?: string
   viewKind?: string
   agentSlug?: string
+  skillSlug?: string
   blocks?: Array<{ type?: string; title?: string; subtitle?: string; value?: string; body?: string }>
   filters?: string[]
 }
