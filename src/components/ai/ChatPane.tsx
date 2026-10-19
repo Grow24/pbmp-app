@@ -1,4 +1,4 @@
-import { AtSign, Copy, GitFork, Hash, ImagePlus, Mic, MicOff, Pin, Plus, RefreshCw, Send, Slash, Volume2 } from 'lucide-react'
+import { AtSign, Copy, GitFork, Hash, ImagePlus, Mic, MicOff, Pause, Pin, Play, Plus, RefreshCw, Send, Slash, Square, Volume2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type ReactNode } from 'react'
 import { applyComposerMessage, flattenMenu, insertComposerTrigger } from '../../ai/composer'
 import { beginImageAttach, type DraftImage } from '../../ai/images'
@@ -6,7 +6,7 @@ import { mentionsInText } from '../../ai/mentions'
 import { InfoPathView } from './InfoPath'
 import { MarkdownView } from '../../ai/markdown'
 import { commandHelp, parseCommand } from '../../ai/commands'
-import { speakWithPrefs, startBrowserStt, stopSpeaking } from '../../ai/speech'
+import { pauseSpeaking, resumeSpeaking, speakWithPrefs, startBrowserStt, stopSpeaking, subscribeSpeech, type SpeechPlayback } from '../../ai/speech'
 import { useAi } from '../../context/AiContext'
 import { useWorkbench } from '../../context/WorkbenchContext'
 import { ComposerHintBar, ComposerPicker } from './ComposerPicker'
@@ -45,6 +45,7 @@ export function ChatPane() {
   const [draft, setDraft] = useState('')
   const [image, setImage] = useState<DraftImage | null>(null)
   const [listening, setListening] = useState(false)
+  const [playback, setPlayback] = useState<SpeechPlayback>({ status: 'idle', key: '' })
   const [editId, setEditId] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const scroller = useRef<HTMLDivElement>(null)
@@ -54,7 +55,9 @@ export function ChatPane() {
   const voiceTurn = useRef(false)
   const taggedNow = useMemo(() => mentionsInText(draft, team), [draft, team])
   const canvases = useMemo(() => flattenMenu(menuSections), [menuSections])
-  const speak = (text: string) => void speakWithPrefs(text, prefs)
+  const speak = (text: string, key = '') => void speakWithPrefs(text, prefs, key)
+
+  useEffect(() => subscribeSpeech(setPlayback), [])
 
   const visible = messages.length
     ? messages
@@ -79,7 +82,7 @@ export function ChatPane() {
     const afterVoice = voiceTurn.current && prefs.voiceReplyAfterMic
     if (!prefs.ttsAutoplay && !afterVoice) return
     voiceTurn.current = false
-    speak(last.text)
+    speak(last.text, last.id)
   }, [
     messages,
     prefs.speechLang,
@@ -389,10 +392,25 @@ export function ChatPane() {
                   </IconBtn>
                   <IconBtn
                     label="Speak"
-                    onClick={() => speak(message.text)}
+                    onClick={() => speak(message.text, message.id)}
                   >
                     <Volume2 className="h-3 w-3" />
                   </IconBtn>
+                  {playback.key === message.id && playback.status === 'playing' && (
+                    <IconBtn label="Pause" onClick={pauseSpeaking}>
+                      <Pause className="h-3 w-3" />
+                    </IconBtn>
+                  )}
+                  {playback.key === message.id && playback.status === 'paused' && (
+                    <IconBtn label="Resume" onClick={resumeSpeaking}>
+                      <Play className="h-3 w-3" />
+                    </IconBtn>
+                  )}
+                  {playback.key === message.id && playback.status !== 'idle' && (
+                    <IconBtn label="Stop" onClick={stopSpeaking}>
+                      <Square className="h-3 w-3" />
+                    </IconBtn>
+                  )}
                   <IconBtn label="Branch" onClick={() => void forkConversation(message.id)}>
                     <GitFork className="h-3 w-3" />
                   </IconBtn>
@@ -464,6 +482,29 @@ export function ChatPane() {
                 Remove
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {playback.status !== 'idle' && (
+        <div className="flex items-center justify-between gap-2 border-t border-slate-200 px-3 py-1.5">
+          <span className="text-[11px] text-slate-500">{playback.status === 'paused' ? 'Paused' : 'Speaking'}</span>
+          <div className="flex items-center gap-1">
+            {playback.status === 'playing' ? (
+              <button type="button" className="ui-btn h-7 px-2 text-[11px]" onClick={pauseSpeaking}>
+                <Pause className="h-3 w-3" />
+                Pause
+              </button>
+            ) : (
+              <button type="button" className="ui-btn h-7 px-2 text-[11px]" onClick={resumeSpeaking}>
+                <Play className="h-3 w-3" />
+                Resume
+              </button>
+            )}
+            <button type="button" className="ui-btn h-7 px-2 text-[11px]" onClick={stopSpeaking}>
+              <Square className="h-3 w-3" />
+              Stop
+            </button>
           </div>
         </div>
       )}

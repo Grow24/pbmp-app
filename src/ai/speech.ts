@@ -75,11 +75,44 @@ export function speakableText(text: string) {
     .slice(0, 4000)
 }
 
-export function speakText(text: string, lang: string, voiceURI = '', rate = 1) {
-  if (!('speechSynthesis' in window)) return
-  window.speechSynthesis.cancel()
+export type SpeechStatus = 'idle' | 'playing' | 'paused'
+
+export type SpeechPlayback = {
+  status: SpeechStatus
+  key: string
+}
+
+let cloudAudio: HTMLAudioElement | null = null
+let cloudUrl = ''
+let generation = 0
+let holdPause = false
+let playback: SpeechPlayback = { status: 'idle', key: '' }
+const playbackListeners = new Set<(state: SpeechPlayback) => void>()
+
+function emitPlayback(next: SpeechPlayback) {
+  playback = next
+  playbackListeners.forEach((listener) => listener(playback))
+}
+
+export function getSpeechPlayback() {
+  return playback
+}
+
+export function subscribeSpeech(listener: (state: SpeechPlayback) => void) {
+  listener(playback)
+  playbackListeners.add(listener)
+  return () => playbackListeners.delete(listener)
+}
+
+function finishPlayback(token: number) {
+  if (token !== generation) return
+  emitPlayback({ status: 'idle', key: '' })
+}
+
+export function speakText(text: string, lang: string, voiceURI = '', rate = 1, key = '') {
+  if (!('speechSynthesis' in window)) return false
   const utter = new SpeechSynthesisUtterance(speakableText(text))
-  if (!utter.text) return
+  if (!utter.text) return false
   const voice = pickVoice(lang, voiceURI)
   if (voice) {
     utter.voice = voice
@@ -88,14 +121,19 @@ export function speakText(text: string, lang: string, voiceURI = '', rate = 1) {
     utter.lang = lang
   }
   utter.rate = Math.min(2, Math.max(0.5, rate || 1))
+  const token = generation
+  const settle = () => finishPlayback(token)
+  utter.onend = settle
+  utter.onerror = settle
+  emitPlayback({ status: holdPause ? 'paused' : 'playing', key })
   window.speechSynthesis.speak(utter)
+  if (holdPause) window.speechSynthesis.pause()
+  return true
 }
 
-let cloudAudio: HTMLAudioElement | null = null
-let cloudUrl = ''
-
-function stopCloudAudio() {
+function releaseCloudAudio() {
   if (cloudAudio) {
+    cloudAudio.onended = null
     cloudAudio.pause()
     cloudAudio = null
   }
@@ -105,7 +143,8 @@ function stopCloudAudio() {
   }
 }
 
-async function speakCloud(text: string, voice: string, speed: number) {
+async function speakCloud(text: string, voice: string, speed: number, key: string) {
+  const token = generation
   const clean = speakableText(text)
   if (!clean) return
   const response = await fetch('/api/ai/tts', {
@@ -113,15 +152,25 @@ async function speakCloud(text: string, voice: string, speed: number) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text: clean, voice: voice || 'alloy', speed }),
   })
+  if (token !== generation) return
   if (!response.ok) {
     const detail = await response.text()
     throw new Error(detail.slice(0, 200) || 'Cloud TTS failed')
   }
   const blob = await response.blob()
-  stopCloudAudio()
+  if (token !== generation) return
+  releaseCloudAudio()
   cloudUrl = URL.createObjectURL(blob)
   cloudAudio = new Audio(cloudUrl)
-  cloudAudio.onended = () => stopCloudAudio()
+  cloudAudio.onended = () => {
+    releaseCloudAudio()
+    finishPlayback(token)
+  }
+  if (holdPause) {
+    emitPlayback({ status: 'paused', key })
+    return
+  }
+  emitPlayback({ status: 'playing', key })
   await cloudAudio.play()
 }
 
@@ -134,21 +183,49 @@ export async function speakWithPrefs(
     ttsSpeed?: number
     ttsCloudVoice?: string
   },
+  key = '',
 ) {
   const speed = prefs.ttsSpeed ?? 1
   stopSpeaking()
+  if (!speakableText(text)) return
+  emitPlayback({ status: 'playing', key })
   if (prefs.ttsProvider === 'openai' || prefs.ttsProvider === 'custom') {
     try {
-      await speakCloud(text, prefs.ttsCloudVoice || 'alloy', speed)
+      await speakCloud(text, prefs.ttsCloudVoice || 'alloy', speed, key)
       return
     } catch {
       // Browser voices still work if the cloud endpoint is not configured.
     }
   }
-  speakText(text, prefs.speechLang, prefs.speechVoice, speed)
+  if (!speakText(text, prefs.speechLang, prefs.speechVoice, speed, key)) {
+    emitPlayback({ status: 'idle', key: '' })
+  }
+}
+
+export function pauseSpeaking() {
+  if (playback.status !== 'playing') return
+  holdPause = true
+  if (cloudAudio && !cloudAudio.paused) cloudAudio.pause()
+  if ('speechSynthesis' in window && window.speechSynthesis.speaking) window.speechSynthesis.pause()
+  emitPlayback({ status: 'paused', key: playback.key })
+}
+
+export function resumeSpeaking() {
+  if (playback.status !== 'paused') return
+  holdPause = false
+  if (cloudAudio) {
+    emitPlayback({ status: 'playing', key: playback.key })
+    void cloudAudio.play()
+    return
+  }
+  if ('speechSynthesis' in window) window.speechSynthesis.resume()
+  emitPlayback({ status: 'playing', key: playback.key })
 }
 
 export function stopSpeaking() {
-  stopCloudAudio()
+  generation += 1
+  holdPause = false
+  releaseCloudAudio()
   if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+  emitPlayback({ status: 'idle', key: '' })
 }
