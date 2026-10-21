@@ -13,7 +13,7 @@ import { usePointerDelta } from './hooks/usePointerDelta'
 function Shell() {
   const { rightOpen, rightWidth, setRightWidth, loading, error } = useWorkbench()
   const { prefs } = useAi()
-  const resizePanel = usePointerDelta((dx) => setRightWidth(rightWidth - dx))
+  const resizePanel = usePointerDelta((dx) => setRightWidth(rightWidth + dx))
 
   if (loading) {
     return (
@@ -39,26 +39,26 @@ function Shell() {
       <div className="flex min-h-0 flex-1">
         <Sidebar />
         <main className="flex min-w-0 flex-1">
-          <Canvas />
           {rightOpen ? (
             <div className="relative z-20 flex h-full shrink-0" style={{ width: rightWidth }}>
+              <div className="min-w-0 flex-1">
+                <RightPanel />
+              </div>
               <div
                 role="separator"
                 aria-orientation="vertical"
                 aria-label="Resize conversation panel"
                 title="Drag to resize"
-                className="absolute inset-y-0 left-0 z-10 w-1.5 cursor-col-resize bg-transparent hover:bg-brand-500/40"
+                className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize bg-transparent hover:bg-brand-500/40"
                 {...resizePanel}
               />
-              <div className="min-w-0 flex-1">
-                <RightPanel />
-              </div>
             </div>
           ) : (
             <div className="hidden xl:block">
               <RightPanel />
             </div>
           )}
+          <Canvas />
         </main>
       </div>
       <Footer />

@@ -45,9 +45,8 @@ export function AllChatsPane() {
       <p className="text-[11px] uppercase tracking-wide text-slate-400">All chats</p>
       <p className="mt-1 text-[13px] font-medium text-slate-800">Every saved conversation</p>
       <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-        Chat tab only opens the thread bound to the page you are on. This list is every saved chat across levels —
-        Strategy, Marketing, Survey Manager, and the rest. Pick one below to open it, even if you are on a different
-        page.
+        Every saved chat across levels — Strategy, Marketing, Survey Manager, and the rest. Pick one and it opens in
+        This chat, even if you are on a different page.
       </p>
 
       <label className="mt-3 block text-[11px] text-slate-500">
@@ -77,7 +76,7 @@ export function AllChatsPane() {
         <p className="mt-4 text-[13px] text-slate-500">
           {allChats.length
             ? 'No chats match that filter.'
-            : 'No saved chats yet. Open Chat on any page, send a message (not Don\'t save), then it appears here.'}
+            : 'No saved chats yet. Open This chat, send a message (not Don\'t save), then it appears here.'}
         </p>
       ) : (
         <div className="mt-3 space-y-3">

@@ -25,7 +25,7 @@ import type {
   ViewKind,
 } from '../types'
 
-type RightTab = 'all-chats' | 'chat' | 'projects' | 'artifacts' | 'agents' | 'highlight'
+export type RightTab = 'all-chats' | 'chat' | 'projects' | 'artifacts' | 'agents' | 'highlight'
 
 type WorkbenchContextValue = {
   loading: boolean
