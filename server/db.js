@@ -201,6 +201,17 @@ export async function ensureSchema() {
       FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE
     )
   `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_library (
+      id CHAR(36) PRIMARY KEY,
+      artifact_id CHAR(36) NULL,
+      kind VARCHAR(32) NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      body MEDIUMTEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_ai_library_artifact (artifact_id)
+    )
+  `)
 
   async function addColumn(table, column, definition) {
     const [rows] = await pool.query(

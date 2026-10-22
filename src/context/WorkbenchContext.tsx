@@ -99,15 +99,25 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const [expandedIds, setExpandedIds] = useState<string[]>([])
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const [rightOpen, setRightOpen] = useState(() => window.innerWidth >= 1280)
+  const [rightOpen, setRightOpenState] = useState(() => window.innerWidth >= 1280)
   const [rightWidth, setRightWidthState] = useState(() => {
     const saved = Number(window.sessionStorage.getItem('pbmp-right-width'))
-    return saved >= 280 && saved <= 900 ? saved : 400
+    if (saved >= 80 && saved <= window.innerWidth) return saved
+    return 400
   })
   const setRightWidth = useCallback((value: number) => {
-    const next = Math.round(Math.min(900, Math.max(280, value)))
+    const next = Math.round(Math.min(window.innerWidth, Math.max(48, value)))
     window.sessionStorage.setItem('pbmp-right-width', String(next))
     setRightWidthState(next)
+  }, [])
+  const setRightOpen = useCallback((value: boolean) => {
+    setRightOpenState(value)
+    if (!value) return
+    setRightWidthState((current) => {
+      if (current >= 280) return current
+      window.sessionStorage.setItem('pbmp-right-width', '400')
+      return 400
+    })
   }, [])
   const [rightTab, setRightTab] = useState<RightTab>('chat')
   const [search, setSearch] = useState('')

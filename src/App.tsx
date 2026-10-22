@@ -5,15 +5,25 @@ import { Footer } from './components/layout/Footer'
 import { Header } from './components/layout/Header'
 import { RightPanel } from './components/layout/RightPanel'
 import { Sidebar } from './components/layout/Sidebar'
+import { ArtifactWindow } from './components/ai/ArtifactWindow'
 import { PrefsDrawer } from './components/ai/PrefsDrawer'
 import { AiProvider, useAi } from './context/AiContext'
+import { useRef } from 'react'
 import { WorkbenchProvider, useWorkbench } from './context/WorkbenchContext'
 import { usePointerDelta } from './hooks/usePointerDelta'
 
 function Shell() {
   const { rightOpen, rightWidth, setRightWidth, loading, error } = useWorkbench()
   const { prefs } = useAi()
-  const resizePanel = usePointerDelta((dx) => setRightWidth(rightWidth + dx))
+  const mainRef = useRef<HTMLElement>(null)
+  const widthRef = useRef(rightWidth)
+  widthRef.current = rightWidth
+  const resizePanel = usePointerDelta((dx) => {
+    const max = mainRef.current?.clientWidth || window.innerWidth
+    const next = Math.min(max, Math.max(48, widthRef.current + dx))
+    widthRef.current = next
+    setRightWidth(next)
+  })
 
   if (loading) {
     return (
@@ -38,18 +48,17 @@ function Shell() {
       <Header />
       <div className="flex min-h-0 flex-1">
         <Sidebar />
-        <main className="flex min-w-0 flex-1">
+        <main ref={mainRef} className="flex min-w-0 flex-1">
           {rightOpen ? (
             <div className="relative z-20 flex h-full shrink-0" style={{ width: rightWidth }}>
               <div className="min-w-0 flex-1">
                 <RightPanel />
               </div>
-              <div
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="Resize conversation panel"
+              <button
+                type="button"
+                aria-label="Drag to resize"
                 title="Drag to resize"
-                className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize bg-transparent hover:bg-brand-500/40"
+                className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize bg-transparent hover:bg-brand-500/40"
                 {...resizePanel}
               />
             </div>
@@ -74,6 +83,15 @@ export default function App() {
 
   if (window.location.pathname.startsWith('/admin')) {
     return <AdminApp />
+  }
+
+  if (window.location.pathname.startsWith('/artifact/')) {
+    const id = window.location.pathname.split('/').filter(Boolean)[1] || ''
+    return (
+      <WorkbenchProvider>
+        <ArtifactWindow id={id} />
+      </WorkbenchProvider>
+    )
   }
 
   return (

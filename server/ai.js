@@ -243,6 +243,18 @@ function mapArtifact(row) {
     title: row.title,
     body: row.body,
     savedContentId: row.saved_content_id,
+    inLibrary: Boolean(row.in_library),
+  }
+}
+
+function mapLibraryItem(row) {
+  return {
+    id: row.id,
+    artifactId: row.artifact_id,
+    kind: row.kind,
+    title: row.title,
+    body: row.body,
+    createdAt: row.created_at,
   }
 }
 
@@ -558,10 +570,26 @@ async function listMessages(conversationId) {
 }
 
 async function listArtifacts(conversationId) {
-  const [rows] = await pool.query('SELECT * FROM ai_artifacts WHERE conversation_id = ? ORDER BY created_at', [
-    conversationId,
-  ])
+  const [rows] = await pool.query(
+    `SELECT a.*, (l.id IS NOT NULL) AS in_library
+     FROM ai_artifacts a
+     LEFT JOIN ai_library l ON l.artifact_id = a.id
+     WHERE a.conversation_id = ?
+     ORDER BY a.created_at`,
+    [conversationId],
+  )
   return rows.map(mapArtifact)
+}
+
+async function getArtifact(id) {
+  const [rows] = await pool.query(
+    `SELECT a.*, (l.id IS NOT NULL) AS in_library
+     FROM ai_artifacts a
+     LEFT JOIN ai_library l ON l.artifact_id = a.id
+     WHERE a.id = ?`,
+    [id],
+  )
+  return rows[0] ? mapArtifact(rows[0]) : null
 }
 
 async function createConversation({
@@ -1573,6 +1601,28 @@ export function registerAiRoutes(app) {
     res.end()
   })
 
+  app.get('/api/ai/artifacts/:id', async (req, res) => {
+    const artifact = await getArtifact(req.params.id)
+    if (!artifact) return res.status(404).json({ error: 'Artifact not found' })
+    res.json(artifact)
+  })
+
+  app.post('/api/ai/artifacts/:id/library', async (req, res) => {
+    const artifact = await getArtifact(req.params.id)
+    if (!artifact) return res.status(404).json({ error: 'Artifact not found' })
+    const [existing] = await pool.query('SELECT * FROM ai_library WHERE artifact_id = ?', [artifact.id])
+    if (existing[0]) {
+      return res.json({ item: mapLibraryItem(existing[0]), artifact: { ...artifact, inLibrary: true } })
+    }
+    const id = randomUUID()
+    await pool.query(
+      `INSERT INTO ai_library (id, artifact_id, kind, title, body) VALUES (?,?,?,?,?)`,
+      [id, artifact.id, artifact.kind, artifact.title, artifact.body],
+    )
+    const [rows] = await pool.query('SELECT * FROM ai_library WHERE id = ?', [id])
+    res.status(201).json({ item: mapLibraryItem(rows[0]), artifact: { ...artifact, inLibrary: true } })
+  })
+
   app.post('/api/ai/artifacts/:id/save', async (req, res) => {
     const [rows] = await pool.query('SELECT * FROM ai_artifacts WHERE id = ?', [req.params.id])
     if (!rows[0]) return res.status(404).json({ error: 'Artifact not found' })
@@ -1600,8 +1650,9 @@ export function registerAiRoutes(app) {
     )
     await pool.query('UPDATE ai_artifacts SET saved_content_id = ? WHERE id = ?', [result.insertId, artifact.id])
     const [saved] = await pool.query('SELECT * FROM content_items WHERE id = ?', [result.insertId])
+    const savedArtifact = await getArtifact(artifact.id)
     res.status(201).json({
-      artifact: mapArtifact({ ...artifact, saved_content_id: result.insertId }),
+      artifact: savedArtifact,
       content: { ...saved[0] },
     })
   })

@@ -1,5 +1,5 @@
 import { Bot, FolderKanban, Highlighter, MessagesSquare, PanelLeftOpen, Sparkles, X } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { AgentsPane } from '../ai/AgentsPane'
 import { AllChatsPane } from '../ai/AllChatsPane'
 import { ArtifactsPane } from '../ai/ArtifactsPane'
@@ -24,14 +24,8 @@ function isChatsTab(tab: RightTab) {
 }
 
 export function RightPanel() {
-  const { rightOpen, setRightOpen, rightTab, setRightTab, rightWidth, setRightWidth } = useWorkbench()
+  const { rightOpen, setRightOpen, rightTab, setRightTab } = useWorkbench()
   const [historyOpen, setHistoryOpen] = useState(true)
-  const widthRef = useRef(rightWidth)
-  widthRef.current = rightWidth
-
-  useEffect(() => {
-    if (isChatsTab(rightTab) && widthRef.current < 720) setRightWidth(760)
-  }, [rightTab, setRightWidth])
 
   const openTab = (id: PanelTab) => {
     if (id === 'chats') {
@@ -108,7 +102,7 @@ export function RightPanel() {
                     ? 'Agents'
                     : 'Highlights'}
           </span>
-          <span className="block text-[10px] text-slate-400">Drag the right edge to resize</span>
+          <span className="block text-[10px] text-slate-400">Drag the edge. It stops at the left line and the right side.</span>
         </span>
         <button
           type="button"

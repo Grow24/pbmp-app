@@ -70,6 +70,16 @@ export type AiArtifact = {
   title: string
   body: string
   savedContentId: number | null
+  inLibrary?: boolean
+}
+
+export type AiLibraryItem = {
+  id: string
+  artifactId: string | null
+  kind: string
+  title: string
+  body: string
+  createdAt?: string
 }
 
 export type AiStatus = {

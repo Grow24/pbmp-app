@@ -21,7 +21,7 @@ export function Canvas() {
     viewKind,
     blocks,
   } = useWorkbench()
-  const { setQuote, activeArtifact, fullscreenArtifact, setFullscreenArtifact, artifacts, binding, conversation, removeFromCanvas } = useAi()
+  const { setQuote, activeArtifact, canvasArtifact, setCanvasArtifact, fullscreenArtifact, setFullscreenArtifact, artifacts, binding, conversation, removeFromCanvas } = useAi()
   const [artifactMax, setArtifactMax] = useState(false)
   const [artifactSize, setArtifactSize] = useState({ w: 760, h: 540 })
   const resizeArtifact = usePointerDelta((dx, dy) => {
@@ -167,7 +167,26 @@ export function Canvas() {
         </button>
       </div>
 
-      <div className={`min-h-0 flex-1 overflow-auto p-4 sm:p-5 ${isDiagram ? 'canvas-grid' : 'bg-[#f5f7fa]'}`}>
+      <div className={`min-h-0 flex-1 overflow-auto p-4 sm:p-5 ${isDiagram && !canvasArtifact ? 'canvas-grid' : 'bg-[#f5f7fa]'}`}>
+        {canvasArtifact ? (
+          <div className="ui-card p-4">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Artifact on this canvas</p>
+                <h2 className="text-sm font-semibold text-slate-900">{canvasArtifact.title}</h2>
+                <p className="mt-0.5 text-[12px] text-slate-500">
+                  This replaces the page visual until you close it. The saved page is unchanged.
+                </p>
+              </div>
+              <button type="button" className="ui-btn shrink-0" onClick={() => setCanvasArtifact(null)}>
+                <X className="h-3.5 w-3.5" />
+                Close
+              </button>
+            </div>
+            <ArtifactPreview artifact={canvasArtifact} />
+          </div>
+        ) : (
+          <>
         {viewKind !== 'filter' && viewKind !== 'device' && <PageFilters page={viewKind} />}
         <CanvasBody />
         {viewKind !== 'doc' && viewKind !== 'dashboard' && (uniqueSaved.length > 0 || artifacts.length > 0) && (
@@ -202,6 +221,8 @@ export function Canvas() {
               </div>
             )}
           </div>
+        )}
+          </>
         )}
       </div>
 

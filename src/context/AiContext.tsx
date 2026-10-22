@@ -32,6 +32,9 @@ type AiContextValue = {
   artifacts: AiArtifact[]
   activeArtifact: AiArtifact | null
   setActiveArtifact: (value: AiArtifact | null) => void
+  canvasArtifact: AiArtifact | null
+  setCanvasArtifact: (value: AiArtifact | null) => void
+  addToLibrary: (id: string) => Promise<void>
   fullscreenArtifact: boolean
   setFullscreenArtifact: (value: boolean) => void
   streaming: boolean
@@ -112,6 +115,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<AiMessage[]>([])
   const [artifacts, setArtifacts] = useState<AiArtifact[]>([])
   const [activeArtifact, setActiveArtifact] = useState<AiArtifact | null>(null)
+  const [canvasArtifact, setCanvasArtifact] = useState<AiArtifact | null>(null)
   const [fullscreenArtifact, setFullscreenArtifact] = useState(false)
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -149,11 +153,13 @@ export function AiProvider({ children }: { children: ReactNode }) {
       setConversation(detail.conversation)
       setMessages(detail.messages)
       setArtifacts(detail.artifacts)
+      setActiveArtifact(detail.artifacts[0] || null)
       setAgentSlug(detail.conversation.agentSlug || 'general')
     } else {
       setConversation(null)
       setMessages([])
       setArtifacts([])
+      setActiveArtifact(null)
     }
   }, [selectedId, showArchived, tabSlug, subtabSlug])
 
@@ -190,6 +196,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
     setConversation(detail.conversation)
     setMessages(detail.messages)
     setArtifacts(detail.artifacts)
+    setActiveArtifact(detail.artifacts[0] || null)
     setAgentSlug(detail.conversation.agentSlug || 'general')
     setRightTab('chat')
   }, [setRightTab])
@@ -461,6 +468,23 @@ export function AiProvider({ children }: { children: ReactNode }) {
     [conversation],
   )
 
+  useEffect(() => {
+    setCanvasArtifact(null)
+  }, [selectedId, tabSlug, subtabSlug])
+
+  const addToLibrary = useCallback(async (id: string) => {
+    setError(null)
+    try {
+      await aiApi.addToLibrary(id)
+      const mark = (item: AiArtifact) => (item.id === id ? { ...item, inLibrary: true } : item)
+      setArtifacts((prev) => prev.map(mark))
+      setActiveArtifact((prev) => (prev ? mark(prev) : prev))
+      setCanvasArtifact((prev) => (prev ? mark(prev) : prev))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not add artifact to the library')
+    }
+  }, [])
+
   const saveArtifact = useCallback(
     async (id: string) => {
       const hasDoc = Boolean(canvas?.tabs.some((tab) => tab.kind === 'doc'))
@@ -574,6 +598,9 @@ export function AiProvider({ children }: { children: ReactNode }) {
       artifacts,
       activeArtifact,
       setActiveArtifact,
+      canvasArtifact,
+      setCanvasArtifact,
+      addToLibrary,
       fullscreenArtifact,
       setFullscreenArtifact,
       streaming,
@@ -609,6 +636,8 @@ export function AiProvider({ children }: { children: ReactNode }) {
     }),
     [
       activeArtifact,
+      addToLibrary,
+      canvasArtifact,
       archiveConversation,
       artifacts,
       agentSlug,

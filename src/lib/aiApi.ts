@@ -1,5 +1,5 @@
 import type { SkillItem } from '../ai/composer'
-import type { AiArtifact, AiConversation, AiMessage, AiProject, AiStatus, AiAgent, AiTeammate } from '../ai/types'
+import type { AiArtifact, AiConversation, AiLibraryItem, AiMessage, AiProject, AiStatus, AiAgent, AiTeammate } from '../ai/types'
 
 export type WorkspacePayload = {
   status: AiStatus
@@ -95,6 +95,11 @@ export const aiApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     }).then((r) => readJson<AiProject>(r)),
+  artifact: (id: string) => fetch(`/api/ai/artifacts/${id}`).then((r) => readJson<AiArtifact>(r)),
+  addToLibrary: (id: string) =>
+    fetch(`/api/ai/artifacts/${id}/library`, { method: 'POST' }).then((r) =>
+      readJson<{ item: AiLibraryItem; artifact: AiArtifact }>(r),
+    ),
   saveArtifact: (id: string, payload: { menuItemId: number | null; viewKind: string }) =>
     fetch(`/api/ai/artifacts/${id}/save`, {
       method: 'POST',
