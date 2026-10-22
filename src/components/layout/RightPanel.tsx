@@ -1,5 +1,5 @@
-import { Bot, FolderKanban, Highlighter, MessagesSquare, Sparkles, X } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { Bot, FolderKanban, Highlighter, MessagesSquare, PanelLeftOpen, Sparkles, X } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AgentsPane } from '../ai/AgentsPane'
 import { AllChatsPane } from '../ai/AllChatsPane'
 import { ArtifactsPane } from '../ai/ArtifactsPane'
@@ -24,7 +24,14 @@ function isChatsTab(tab: RightTab) {
 }
 
 export function RightPanel() {
-  const { rightOpen, setRightOpen, rightTab, setRightTab } = useWorkbench()
+  const { rightOpen, setRightOpen, rightTab, setRightTab, rightWidth, setRightWidth } = useWorkbench()
+  const [historyOpen, setHistoryOpen] = useState(true)
+  const widthRef = useRef(rightWidth)
+  widthRef.current = rightWidth
+
+  useEffect(() => {
+    if (isChatsTab(rightTab) && widthRef.current < 720) setRightWidth(760)
+  }, [rightTab, setRightWidth])
 
   const openTab = (id: PanelTab) => {
     if (id === 'chats') {
@@ -132,33 +139,30 @@ export function RightPanel() {
       </div>
 
       {isChatsTab(rightTab) && (
-        <div className="flex gap-1 border-b border-slate-100 bg-[#fafafa] px-2">
-          <InnerTab label="This chat" selected={rightTab === 'chat'} onClick={() => setRightTab('chat')} />
-          <InnerTab label="All chats" selected={rightTab === 'all-chats'} onClick={() => setRightTab('all-chats')} />
+        <div className="flex min-h-0 flex-1">
+          {historyOpen ? (
+            <AllChatsPane onCollapse={() => setHistoryOpen(false)} />
+          ) : (
+            <button
+              type="button"
+              className="inline-flex w-9 shrink-0 items-start justify-center border-r border-slate-200 bg-[#f7f7f8] pt-2 text-slate-500 hover:bg-slate-100"
+              onClick={() => setHistoryOpen(true)}
+              aria-label="Show chat list"
+              title="Show chat list"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
+          )}
+          <div className="flex min-w-0 flex-1 flex-col">
+            <ChatPane />
+          </div>
         </div>
       )}
-
-      {rightTab === 'chat' && <ChatPane />}
-      {rightTab === 'all-chats' && <AllChatsPane />}
       {rightTab === 'projects' && <ProjectsPane />}
       {rightTab === 'artifacts' && <ArtifactsPane />}
       {rightTab === 'agents' && <AgentsPane />}
       {rightTab === 'highlight' && <HighlightPane />}
     </aside>
-  )
-}
-
-function InnerTab({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`-mb-px border-b-2 px-2.5 py-1.5 text-[11px] ${
-        selected ? 'border-brand-500 font-medium text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-800'
-      }`}
-    >
-      {label}
-    </button>
   )
 }
 
