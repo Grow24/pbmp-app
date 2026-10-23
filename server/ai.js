@@ -971,6 +971,22 @@ function runnableReply(message) {
   return [note, '', ...pieces.map(fenceFor)].join('\n')
 }
 
+function agentVoice(agent) {
+  if (!agent || agent.slug === 'general') return ''
+  return `**${agent.name}.** ${agent.role || ''}`.trim()
+}
+
+function localAgentReply(agent, { title, blocks, report, canvasRead }) {
+  if (!agent || agent.slug === 'general') return ''
+  const voice = agentVoice(agent)
+  if (agent.slug === 'executive-analyst') return [voice, '', report].join('\n')
+  if (agent.slug === 'finance-analyst') return [voice, '', localPricingReply(title, blocks)].join('\n')
+  if (agent.slug === 'business-analyst') return [voice, '', localAsIsReply(title, blocks)].join('\n')
+  if (agent.slug === 'project-manager') return [voice, '', localRiskReply(title, blocks)].join('\n')
+  const instruction = String(agent.instruction || agent.role || '').trim()
+  return [voice, '', instruction, '', canvasRead].filter(Boolean).join('\n')
+}
+
 function localAssistantReply({ message, context, imageName, imageData }) {
   const supplied = runnableReply(message)
   if (supplied) return supplied
@@ -1016,15 +1032,20 @@ function localAssistantReply({ message, context, imageName, imageData }) {
   ].join('\n')
 
   const chart = localChartReply({ title, view, blocks, imageLine, message, filters: context.filters })
+  const agent = agentBySlug(context.agentSlug)
+  const speak = (text) => {
+    const voice = agentVoice(agent)
+    return voice ? `${voice}\n\n${text}` : text
+  }
   const intent = skillIntent(context, message)
-  if (intent === 'risk') return [imageLine, localRiskReply(title, blocks)].filter(Boolean).join('\n\n')
-  if (intent === 'as-is') return [imageLine, localAsIsReply(title, blocks)].filter(Boolean).join('\n\n')
-  if (intent === 'pricing') return [imageLine, localPricingReply(title, blocks)].filter(Boolean).join('\n\n')
+  if (intent === 'risk') return speak([imageLine, localRiskReply(title, blocks)].filter(Boolean).join('\n\n'))
+  if (intent === 'as-is') return speak([imageLine, localAsIsReply(title, blocks)].filter(Boolean).join('\n\n'))
+  if (intent === 'pricing') return speak([imageLine, localPricingReply(title, blocks)].filter(Boolean).join('\n\n'))
   const parts = []
   if (intent === 'report' || wantsReport(message)) parts.push(report)
   if (intent === 'diagram' || wantsDiagram(message)) parts.push(diagram)
   if (intent === 'chart' || wantsChart(message)) parts.push(chart)
-  if (parts.length) return parts.filter(Boolean).join('\n\n---\n\n')
+  if (parts.length) return speak(parts.filter(Boolean).join('\n\n---\n\n'))
 
   const seen = new Set()
   const highlights = [...alerts, ...capabilities, ...blocks]
@@ -1038,7 +1059,7 @@ function localAssistantReply({ message, context, imageName, imageData }) {
     .slice(0, 5)
     .map((block) => `- ${block.title || block.type}: ${String(block.body || block.value || block.subtitle || '').slice(0, 160)}`)
 
-  return [
+  const canvasRead = [
     imageLine,
     `Looking at **${title}** · ${view}.`,
     '',
@@ -1050,6 +1071,8 @@ function localAssistantReply({ message, context, imageName, imageData }) {
   ]
     .filter(Boolean)
     .join('\n')
+
+  return localAgentReply(agent, { title, blocks, report, canvasRead }) || canvasRead
 }
 
 function writeEvent(res, payload) {
