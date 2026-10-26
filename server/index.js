@@ -9,6 +9,7 @@ import { seedIfEmpty, seedFiltersIfEmpty, seedAgentBotMenu, seedNestedPlanningMe
 import { seedAiCatalog } from './catalog.js'
 import { registerAiRoutes } from './ai.js'
 import { ensureMcpServers, registerMcpRoutes } from './mcp.js'
+import { ensureBusinessRecords } from './mcp-records.js'
 
 dotenv.config()
 
@@ -511,6 +512,7 @@ async function start() {
   await waitForDb()
   await ensureSchema()
   await ensureMcpServers()
+  await ensureBusinessRecords()
   const seeded = await seedIfEmpty()
   await seedFiltersIfEmpty()
   await seedAgentBotMenu()

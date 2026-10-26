@@ -154,7 +154,7 @@ export function AiCatalogPage({ onMessage }: { onMessage: (text: string) => void
         <h2 className="text-sm font-semibold text-slate-800">MCP servers</h2>
         <p className="text-[12px] leading-relaxed text-slate-500">
           Chat calls tools from the servers that are on. A model key is required for a live call. PBMP canvas is the built-in server:
-          it can list canvases, read one canvas, and list saved filters. A local command runs on this machine.
+          projects, actuals, risks, benefits, sales, canvases, resources, and prompts. A write is saved only after you confirm it in chat.
         </p>
         {servers.map((item) => (
           <div key={item.id} className="flex items-start justify-between gap-3 border-t border-slate-100 pt-2">
@@ -176,8 +176,15 @@ export function AiCatalogPage({ onMessage }: { onMessage: (text: string) => void
                       const body = await response.json()
                       if (!response.ok) throw new Error(body.error || 'Test failed')
                       const names = (body.tools || []).map((tool: { name: string }) => tool.name).join(', ')
-                      setMcpTools(`${item.name}: ${names || 'no tools'}`)
-                      onMessage(`Connected. ${body.tools?.length || 0} tools.`)
+                      const resources = (body.resources || []).map((entry: { uri: string }) => entry.uri).join(', ')
+                      const prompts = (body.prompts || []).map((entry: { name: string }) => entry.name).join(', ')
+                      setMcpTools([
+                        `${item.name}`,
+                        `Tools: ${names || 'none'}`,
+                        `Resources: ${resources || 'none'}`,
+                        `Prompts: ${prompts || 'none'}`,
+                      ].join('\n'))
+                      onMessage(`Connected. ${body.tools?.length || 0} tools, ${body.resources?.length || 0} resources, ${body.prompts?.length || 0} prompts.`)
                     })
                     .catch((error) => onMessage(error.message))
                 }
@@ -207,7 +214,7 @@ export function AiCatalogPage({ onMessage }: { onMessage: (text: string) => void
             </div>
           </div>
         ))}
-        {mcpTools ? <p className="text-[12px] text-slate-600">{mcpTools}</p> : null}
+        {mcpTools ? <p className="whitespace-pre-wrap text-[12px] text-slate-600">{mcpTools}</p> : null}
         <Field label="Name">
           <TextInput value={mcp.name} placeholder="GitHub" onChange={(event) => setMcp((prev) => ({ ...prev, name: event.target.value }))} />
         </Field>

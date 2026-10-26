@@ -1621,9 +1621,19 @@ export function registerAiRoutes(app) {
           imageData: image?.dataUrl,
         })
         if (mcpSession.tools.length) {
-          messages[0].content += '\n\nMCP tools are connected. Call one when the user asks which canvases exist, what a canvas contains, or which filters are saved. Answer from the tool result.'
+          const catalogLines = (mcpSession.catalog || []).flatMap((item) => [
+            item.resources.length ? `Resources on ${item.server}: ${item.resources.join(', ')}. Read one with the read_resource tool.` : '',
+            item.prompts.length ? `Prompts on ${item.server}: ${item.prompts.join(', ')}.` : '',
+          ]).filter(Boolean)
+          messages[0].content += [
+            '',
+            'MCP tools are connected. Use a project id from list_projects. If a tool says the id was not found, stop and say so.',
+            'get_sales is for actuals. Forecasts use get_sales_forecast.',
+            'Write tools save a row only when confirmed is true. Ask the user first, then call again with confirmed true.',
+            ...catalogLines,
+          ].join('\n')
           let guard = 0
-          while (guard < 4) {
+          while (guard < 6) {
             guard += 1
             const message = await completeOpenAi({
               messages,
