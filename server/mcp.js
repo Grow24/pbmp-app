@@ -179,14 +179,31 @@ async function connectRow(row) {
   return client
 }
 
+async function listedNames(client, method, key) {
+  try {
+    const result = await client[method]()
+    return result[key] || []
+  } catch {
+    return []
+  }
+}
+
 async function probe(row) {
   const client = await connectRow(row)
   try {
     const listed = await client.listTools()
-    return (listed.tools || []).map((tool) => ({
-      name: tool.name,
-      description: tool.description || '',
-    }))
+    const resources = await listedNames(client, 'listResources', 'resources')
+    const templates = await listedNames(client, 'listResourceTemplates', 'resourceTemplates')
+    const prompts = await listedNames(client, 'listPrompts', 'prompts')
+    return {
+      tools: (listed.tools || []).map((tool) => ({
+        name: tool.name,
+        description: tool.description || '',
+      })),
+      resources: resources.map((item) => ({ name: item.name, uri: item.uri })),
+      templates: templates.map((item) => ({ name: item.name, uriTemplate: item.uriTemplate })),
+      prompts: prompts.map((item) => ({ name: item.name, description: item.description || '' })),
+    }
   } finally {
     await client.close()
   }
@@ -195,14 +212,15 @@ async function probe(row) {
 export async function testMcpServer(id) {
   const [rows] = await pool.query('SELECT * FROM mcp_servers WHERE id = ?', [id])
   if (!rows[0]) return null
-  const tools = await probe(rows[0])
-  return { ok: true, server: mapServer(rows[0]), tools }
+  const found = await probe(rows[0])
+  return { ok: true, server: mapServer(rows[0]), ...found }
 }
 
 export async function openMcpSession() {
   const [rows] = await pool.query('SELECT * FROM mcp_servers WHERE is_active = 1 ORDER BY id')
   const clients = []
   const tools = []
+  const catalog = []
   const routes = new Map()
   const failures = []
 
@@ -211,6 +229,13 @@ export async function openMcpSession() {
       const client = await connectRow(row)
       clients.push(client)
       const listed = await client.listTools()
+      const resources = await listedNames(client, 'listResources', 'resources')
+      const prompts = await listedNames(client, 'listPrompts', 'prompts')
+      catalog.push({
+        server: row.name,
+        resources: resources.map((item) => item.uri).filter(Boolean),
+        prompts: prompts.map((item) => item.name).filter(Boolean),
+      })
       for (const tool of listed.tools || []) {
         const exposed = `${row.slug}__${tool.name}`.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64)
         if (routes.has(exposed)) continue
@@ -231,6 +256,7 @@ export async function openMcpSession() {
 
   return {
     tools,
+    catalog,
     failures,
     async call(exposedName, args) {
       const route = routes.get(exposedName)
