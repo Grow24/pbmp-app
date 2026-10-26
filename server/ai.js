@@ -13,6 +13,7 @@ import {
   saveSkill,
   saveTeammate,
 } from './catalog.js'
+import { activeMcpCount, openMcpSession } from './mcp.js'
 
 function agentBySlug(slug) {
   const agents = catalogSnapshot().agents.filter((item) => item.isActive !== false)
@@ -67,6 +68,7 @@ function buildInfoPath({
   usedRemote,
   fallbackError,
   taggedCount = 0,
+  mcpNotes = [],
 }) {
   const config = aiConfig()
   const provider = detectProvider(config)
@@ -116,8 +118,16 @@ function buildInfoPath({
     })
   }
 
+  if (mcpNotes.length) {
+    steps.push({
+      n: 0,
+      title: 'MCP tools',
+      detail: mcpNotes.join(' '),
+    })
+  }
+
   steps.push({
-    n: 5,
+    n: 0,
     title: 'Saved in MySQL',
     detail:
       `Reply stored in ${mysqlLabel()} · ai_messages.` +
@@ -128,7 +138,7 @@ function buildInfoPath({
   return {
     used: usedRemote ? provider.id : fallbackError ? 'fallback' : 'local',
     provider: usedRemote ? provider.label : fallbackError ? 'Local fallback' : 'Local canvas assistant',
-    steps,
+    steps: steps.map((step, index) => ({ ...step, n: index + 1 })),
   }
 }
 
@@ -1087,6 +1097,35 @@ async function streamText(res, text) {
   }
 }
 
+function messageText(content) {
+  if (typeof content === 'string') return content
+  if (Array.isArray(content)) return content.map((part) => part?.text || '').join('')
+  return ''
+}
+
+async function completeOpenAi({ messages, tools, signal }) {
+  const config = aiConfig()
+  const payload = { model: config.model, messages }
+  if (tools?.length) payload.tools = tools
+  const response = await fetch(`${config.base}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.key}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+    signal: signal || AbortSignal.timeout(120000),
+  })
+  if (!response.ok) {
+    const detail = await response.text()
+    throw new Error(detail.slice(0, 400) || `Model request failed (${response.status})`)
+  }
+  const json = await response.json()
+  const message = json.choices?.[0]?.message
+  if (!message) throw new Error('Model returned no message')
+  return message
+}
+
 async function streamOpenAi({ messages, signal }) {
   const config = aiConfig()
   const response = await fetch(`${config.base}/chat/completions`, {
@@ -1567,24 +1606,84 @@ export function registerAiRoutes(app) {
 
     let full = ''
     let infoPath = buildInfoPath({ ...pathArgs, usedRemote: false })
+    let mcpSession = null
     try {
       const config = aiConfig()
       if (config.configured) {
-        infoPath = buildInfoPath({ ...pathArgs, usedRemote: true })
+        mcpSession = await openMcpSession()
+        const mcpNotes = mcpSession.failures.map((item) => `${item.name} did not connect (${item.error}).`)
+        infoPath = buildInfoPath({ ...pathArgs, usedRemote: true, mcpNotes })
         writeEvent(res, { type: 'path', path: infoPath })
-        const body = await streamOpenAi({
-          messages: buildModelMessages({
-            history: history.filter((item) => item.id !== assistantId),
-            context: { ...context, agentSlug, skillSlug },
-            message: trimmed,
-            imageData: image?.dataUrl,
-          }),
+        const messages = buildModelMessages({
+          history: history.filter((item) => item.id !== assistantId),
+          context: { ...context, agentSlug, skillSlug },
+          message: trimmed,
+          imageData: image?.dataUrl,
         })
-        full = await readOpenAiStream(body, (piece) => {
-          full += ''
-          writeEvent(res, { type: 'delta', text: piece })
-        })
+        if (mcpSession.tools.length) {
+          messages[0].content += '\n\nMCP tools are connected. Call one when the user asks which canvases exist, what a canvas contains, or which filters are saved. Answer from the tool result.'
+          let guard = 0
+          while (guard < 4) {
+            guard += 1
+            const message = await completeOpenAi({
+              messages,
+              tools: mcpSession.tools,
+              signal: req.signal,
+            })
+            const calls = Array.isArray(message.tool_calls) ? message.tool_calls : []
+            if (!calls.length) {
+              full = messageText(message.content)
+              if (full) await streamText(res, full)
+              break
+            }
+            messages.push({
+              role: 'assistant',
+              content: messageText(message.content),
+              tool_calls: calls,
+            })
+            for (const call of calls) {
+              const exposed = call.function?.name || 'tool'
+              writeEvent(res, { type: 'tool', name: exposed, status: 'start', detail: `Calling ${exposed}` })
+              let args = {}
+              try {
+                args = JSON.parse(call.function?.arguments || '{}')
+              } catch {
+                args = {}
+              }
+              let resultText = ''
+              try {
+                resultText = await mcpSession.call(exposed, args)
+                mcpNotes.push(`${exposed} returned ${resultText.length} characters.`)
+                writeEvent(res, { type: 'tool', name: exposed, status: 'done', detail: resultText.slice(0, 240) })
+              } catch (error) {
+                resultText = `Tool failed: ${error.message}`
+                mcpNotes.push(`${exposed} failed: ${error.message}`)
+                writeEvent(res, { type: 'tool', name: exposed, status: 'error', detail: error.message })
+              }
+              messages.push({ role: 'tool', tool_call_id: call.id, content: resultText.slice(0, 8000) })
+            }
+          }
+          if (!full) {
+            messages.push({ role: 'user', content: 'Answer the original question from the tool results. Do not call more tools.' })
+            const message = await completeOpenAi({ messages, signal: req.signal })
+            full = messageText(message.content)
+            if (full) await streamText(res, full)
+          }
+          infoPath = buildInfoPath({ ...pathArgs, usedRemote: true, mcpNotes })
+          writeEvent(res, { type: 'path', path: infoPath })
+        } else {
+          const body = await streamOpenAi({ messages, signal: req.signal })
+          full = await readOpenAiStream(body, (piece) => {
+            full += ''
+            writeEvent(res, { type: 'delta', text: piece })
+          })
+        }
       } else {
+        const connected = await activeMcpCount()
+        const mcpNotes = connected
+          ? [`${connected} MCP server${connected === 1 ? '' : 's'} connected. Tools stay idle until a model key is saved.`]
+          : []
+        infoPath = buildInfoPath({ ...pathArgs, usedRemote: false, mcpNotes })
         writeEvent(res, { type: 'path', path: infoPath })
         full = localAssistantReply({
           message: trimmed,
@@ -1606,6 +1705,8 @@ export function registerAiRoutes(app) {
       const note = `I could not reach the configured model (${error.message}). Continuing with the canvas-aware assistant.\n\n`
       full = note + fallback
       await streamText(res, full)
+    } finally {
+      if (mcpSession) await mcpSession.close()
     }
 
     const supplied = runnableReply(trimmed)

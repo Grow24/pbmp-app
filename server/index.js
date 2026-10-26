@@ -8,6 +8,7 @@ import { pool, waitForDb, ensureSchema, dbConfig } from './db.js'
 import { seedIfEmpty, seedFiltersIfEmpty, seedAgentBotMenu, seedNestedPlanningMenu, seedAiSettingsIfMissing, seedDeviceManagerMenu, syncDefaultMenu } from './seed.js'
 import { seedAiCatalog } from './catalog.js'
 import { registerAiRoutes } from './ai.js'
+import { ensureMcpServers, registerMcpRoutes } from './mcp.js'
 
 dotenv.config()
 
@@ -487,6 +488,7 @@ app.delete('/api/filters/:id', async (req, res) => {
 })
 
 registerAiRoutes(app)
+registerMcpRoutes(app)
 
 if (fs.existsSync(path.join(distDir, 'index.html'))) {
   app.use(express.static(distDir))
@@ -508,6 +510,7 @@ async function start() {
   console.log(`MySQL ${dbConfig.user}@${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`)
   await waitForDb()
   await ensureSchema()
+  await ensureMcpServers()
   const seeded = await seedIfEmpty()
   await seedFiltersIfEmpty()
   await seedAgentBotMenu()

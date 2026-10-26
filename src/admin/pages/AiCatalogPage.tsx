@@ -32,6 +32,19 @@ type TeamRow = {
 
 type Runtime = { base: string; model: string; hasKey: boolean; keyHint: string }
 
+type McpServer = {
+  id: number
+  name: string
+  transport: 'stdio' | 'http'
+  command: string
+  args: string[]
+  url: string
+  hasToken: boolean
+  tokenHint: string
+  isActive: boolean
+  builtin: boolean
+}
+
 const INTENTS = ['ask', 'report', 'diagram', 'chart', 'risk', 'as-is', 'pricing']
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -48,6 +61,9 @@ export function AiCatalogPage({ onMessage }: { onMessage: (text: string) => void
   const [skill, setSkill] = useState({ label: '', hint: '', prompt: '', intent: 'ask' })
   const [agent, setAgent] = useState({ name: '', role: '', useWhen: '', ask: '', instruction: '' })
   const [mate, setMate] = useState({ name: '', role: '' })
+  const [servers, setServers] = useState<McpServer[]>([])
+  const [mcp, setMcp] = useState({ name: '', transport: 'stdio', command: '', argsText: '', url: '', token: '' })
+  const [mcpTools, setMcpTools] = useState('')
 
   const load = async () => {
     const catalog = await readJson<{ agents: AgentRow[]; skills: SkillRow[]; team: TeamRow[] }>(
@@ -57,6 +73,8 @@ export function AiCatalogPage({ onMessage }: { onMessage: (text: string) => void
     setSkills(catalog.skills)
     setTeam(catalog.team)
     setRuntime(await readJson<Runtime>(await fetch('/api/ai/runtime')))
+    const mcpList = await readJson<{ servers: McpServer[] }>(await fetch('/api/ai/mcp'))
+    setServers(mcpList.servers)
   }
 
   useEffect(() => {
@@ -130,6 +148,116 @@ export function AiCatalogPage({ onMessage }: { onMessage: (text: string) => void
             </button>
           ) : null}
         </div>
+      </section>
+
+      <section className="ui-card space-y-3 p-5">
+        <h2 className="text-sm font-semibold text-slate-800">MCP servers</h2>
+        <p className="text-[12px] leading-relaxed text-slate-500">
+          Chat calls tools from the servers that are on. A model key is required for a live call. PBMP canvas is the built-in server:
+          it can list canvases, read one canvas, and list saved filters. A local command runs on this machine.
+        </p>
+        {servers.map((item) => (
+          <div key={item.id} className="flex items-start justify-between gap-3 border-t border-slate-100 pt-2">
+            <div>
+              <p className="text-[13px] font-medium text-slate-800">
+                {item.name} · {item.transport} · {item.isActive ? 'on' : 'off'}
+              </p>
+              <p className="text-[12px] text-slate-500">
+                {item.transport === 'http' ? item.url : `${item.command} ${item.args.join(' ')}`}
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                className="text-[11px] text-brand-700"
+                onClick={() =>
+                  void fetch(`/api/ai/mcp/${item.id}/test`, { method: 'POST' })
+                    .then(async (response) => {
+                      const body = await response.json()
+                      if (!response.ok) throw new Error(body.error || 'Test failed')
+                      const names = (body.tools || []).map((tool: { name: string }) => tool.name).join(', ')
+                      setMcpTools(`${item.name}: ${names || 'no tools'}`)
+                      onMessage(`Connected. ${body.tools?.length || 0} tools.`)
+                    })
+                    .catch((error) => onMessage(error.message))
+                }
+              >
+                Test
+              </button>
+              <button
+                type="button"
+                className="text-[11px] text-slate-600"
+                onClick={() =>
+                  void fetch(`/api/ai/mcp/${item.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ isActive: !item.isActive }),
+                  }).then(() => load())
+                }
+              >
+                {item.isActive ? 'Turn off' : 'Turn on'}
+              </button>
+              <button
+                type="button"
+                className="text-[11px] text-rose-600"
+                onClick={() => void fetch(`/api/ai/mcp/${item.id}`, { method: 'DELETE' }).then(() => load())}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
+        {mcpTools ? <p className="text-[12px] text-slate-600">{mcpTools}</p> : null}
+        <Field label="Name">
+          <TextInput value={mcp.name} placeholder="GitHub" onChange={(event) => setMcp((prev) => ({ ...prev, name: event.target.value }))} />
+        </Field>
+        <Field label="Transport">
+          <Select value={mcp.transport} onChange={(event) => setMcp((prev) => ({ ...prev, transport: event.target.value }))}>
+            <option value="stdio">Local command (stdio)</option>
+            <option value="http">Remote URL (HTTP)</option>
+          </Select>
+        </Field>
+        {mcp.transport === 'stdio' ? (
+          <>
+            <Field label="Command">
+              <TextInput value={mcp.command} placeholder="npx" onChange={(event) => setMcp((prev) => ({ ...prev, command: event.target.value }))} />
+            </Field>
+            <Field label="Arguments" hint="One argument on each line.">
+              <TextArea rows={3} value={mcp.argsText} placeholder={'-y\n@modelcontextprotocol/server-filesystem\n/home/rudra'} onChange={(event) => setMcp((prev) => ({ ...prev, argsText: event.target.value }))} />
+            </Field>
+          </>
+        ) : (
+          <>
+            <Field label="URL">
+              <TextInput value={mcp.url} placeholder="https://example.com/mcp" onChange={(event) => setMcp((prev) => ({ ...prev, url: event.target.value }))} />
+            </Field>
+            <Field label="Bearer token" hint="Optional. Leave blank if the server does not need one.">
+              <TextInput type="password" value={mcp.token} autoComplete="off" onChange={(event) => setMcp((prev) => ({ ...prev, token: event.target.value }))} />
+            </Field>
+          </>
+        )}
+        <button
+          type="button"
+          className="ui-btn-primary"
+          onClick={() =>
+            void fetch('/api/ai/mcp', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(mcp),
+            })
+              .then(async (response) => {
+                if (!response.ok) throw new Error((await response.json()).error || 'Could not add server')
+              })
+              .then(() => load())
+              .then(() => {
+                setMcp({ name: '', transport: 'stdio', command: '', argsText: '', url: '', token: '' })
+                onMessage('MCP server added.')
+              })
+              .catch((error) => onMessage(error.message))
+          }
+        >
+          Add MCP server
+        </button>
       </section>
 
       <section className="ui-card space-y-3 p-5">
