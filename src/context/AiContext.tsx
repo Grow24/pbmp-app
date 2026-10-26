@@ -376,6 +376,9 @@ export function AiProvider({ children }: { children: ReactNode }) {
             const event = JSON.parse(line) as {
               type: string
               text?: string
+              name?: string
+              status?: string
+              detail?: string
               conversationId?: string
               messageId?: string
               artifacts?: AiArtifact[]
@@ -391,6 +394,24 @@ export function AiProvider({ children }: { children: ReactNode }) {
                   return [detail.conversation, ...prev]
                 })
               }
+            }
+            if (event.type === 'tool') {
+              const target = liveId
+              setMessages((prev) =>
+                prev.map((item) => {
+                  if (item.id !== target && item.id !== assistantId) return item
+                  const path = item.path || { used: 'remote', provider: 'MCP', steps: [] }
+                  const steps = [
+                    ...path.steps,
+                    {
+                      n: path.steps.length + 1,
+                      title: `MCP · ${event.name || 'tool'} · ${event.status || 'update'}`,
+                      detail: event.detail || '',
+                    },
+                  ]
+                  return { ...item, id: target, path: { ...path, steps } }
+                }),
+              )
             }
             if (event.type === 'path' && event.path) {
               const target = liveId
