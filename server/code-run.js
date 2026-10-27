@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -13,12 +13,28 @@ function firstExisting(candidates, fallback) {
   return candidates.find((candidate) => candidate && existsSync(candidate)) || fallback
 }
 
+function jvmBinDirs() {
+  const root = '/usr/lib/jvm'
+  if (!existsSync(root)) return []
+  return readdirSync(root).map((dir) => path.join(root, dir, 'bin'))
+}
+
 function binary(name, extra) {
   const home = os.homedir()
   return firstExisting(
     [process.env[`PBMP_${name.toUpperCase()}`], ...extra, path.join(home, '.local', 'bin', name)],
     name,
   )
+}
+
+function javaTool(name) {
+  return binary(name, [
+    path.join(os.homedir(), '.local', 'jdk', 'bin', name),
+    ...jvmBinDirs().map((dir) => path.join(dir, name)),
+    `/usr/lib/jvm/java-21-openjdk/bin/${name}`,
+    `/usr/local/bin/${name}`,
+    `/usr/bin/${name}`,
+  ])
 }
 
 function clip(value) {
@@ -38,7 +54,7 @@ function runCommand(command, args, cwd, stdin = '') {
     const child = spawn(command, args, {
       cwd,
       env: {
-        PATH: process.env.PATH || '/usr/bin:/bin',
+        PATH: [...jvmBinDirs(), '/usr/local/bin', process.env.PATH || '/usr/bin:/bin'].join(':'),
         LANG: 'C.UTF-8',
         HOME: cwd,
         TMPDIR: cwd,
@@ -73,9 +89,10 @@ function runCommand(command, args, cwd, stdin = '') {
 }
 
 function javaSource(source) {
-  if (/public\s+class\s+Main\b/.test(source)) return source
-  if (/public\s+class\s+\w+/.test(source)) return source.replace(/public\s+class\s+\w+/, 'public class Main')
-  return `public class Main {\n  public static void main(String[] args) {\n    ${source}\n  }\n}\n`
+  const code = String(source || '').replace(/\bsystem\.(out|in|err)\b/g, 'System.$1')
+  if (/public\s+class\s+Main\b/.test(code)) return code
+  if (/public\s+class\s+\w+/.test(code)) return code.replace(/public\s+class\s+\w+/, 'public class Main')
+  return `public class Main {\n  public static void main(String[] args) {\n    ${code}\n  }\n}\n`
 }
 
 export async function runProgram(language, source, stdin = '') {
@@ -100,8 +117,8 @@ export async function runProgram(language, source, stdin = '') {
       await fs.writeFile(path.join(dir, 'main.php'), body)
       return await runCommand(php, ['-n', '-d', 'disable_functions=exec,shell_exec,system,passthru,proc_open,popen', 'main.php'], dir, input)
     }
-    const javac = binary('javac', [path.join(os.homedir(), '.local', 'jdk', 'bin', 'javac'), '/usr/bin/javac'])
-    const java = binary('java', [path.join(os.homedir(), '.local', 'jdk', 'bin', 'java'), '/usr/bin/java'])
+    const javac = javaTool('javac')
+    const java = javaTool('java')
     await fs.writeFile(path.join(dir, 'Main.java'), javaSource(code))
     const compiled = await runCommand(javac, ['Main.java'], dir)
     if (compiled.code !== 0) return compiled
