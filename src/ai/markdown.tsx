@@ -4,6 +4,8 @@ import { EChartPanel, parsePanelSpec } from '../components/ai/EChartPanel'
 import { EChartView } from '../components/ai/EChartView'
 import { HtmlFrame } from '../components/ai/HtmlFrame'
 import { MermaidView } from '../components/ai/MermaidView'
+import { PythonRunner } from '../components/ai/PythonRunner'
+import { TableView } from '../components/ai/TableView'
 
 function inline(text: string): ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g)
@@ -75,6 +77,18 @@ export function MarkdownView({ text }: { text: string }) {
             <CodeRunner title="Script" source={body.join('\n')} />
           </div>,
         )
+      } else if (lang === 'python') {
+        nodes.push(
+          <div key={`c-${i}`} className="my-2">
+            <PythonRunner title="Python" source={body.join('\n')} />
+          </div>,
+        )
+      } else if (lang === 'csv' || lang === 'table') {
+        nodes.push(
+          <div key={`c-${i}`} className="my-2">
+            <TableView body={body.join('\n')} />
+          </div>,
+        )
       } else {
         nodes.push(
           <pre key={`c-${i}`} className="my-2 overflow-x-auto rounded bg-slate-900 p-3 text-[11px] text-slate-100">
@@ -104,6 +118,19 @@ export function MarkdownView({ text }: { text: string }) {
           {inline(line.slice(4))}
         </h5>,
       )
+    } else if (line.trim().startsWith('|') && line.includes('|')) {
+      const table: string[] = [line]
+      i += 1
+      while (i < lines.length && lines[i].trim().startsWith('|')) {
+        table.push(lines[i])
+        i += 1
+      }
+      nodes.push(
+        <div key={`t-${i}`} className="my-2">
+          <TableView body={table.join('\n')} />
+        </div>,
+      )
+      continue
     } else if (line.startsWith('- ')) {
       nodes.push(
         <li key={i} className="ml-4 list-disc text-[13px] leading-relaxed">

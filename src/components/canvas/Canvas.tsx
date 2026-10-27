@@ -193,7 +193,7 @@ export function Canvas() {
           <div className="mt-4 ui-card p-3">
             <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Saved AI artifacts on this workspace</p>
             {!uniqueSaved.length ? (
-              <p className="mt-2 text-[12px] text-slate-400">Nothing saved yet — generate a report, diagram, or EChart, then Save to canvas.</p>
+              <p className="mt-2 text-[12px] text-slate-400">Nothing saved yet — generate a report, diagram, table, chart, or runnable script, then Save to canvas.</p>
             ) : (
               <div className="mt-3 space-y-3">
                 {uniqueSaved.map((item) => (
