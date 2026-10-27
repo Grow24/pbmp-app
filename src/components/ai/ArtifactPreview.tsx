@@ -6,7 +6,7 @@ import { EChartPanel, parsePanelSpec } from './EChartPanel'
 import { EChartView } from './EChartView'
 import { HtmlFrame } from './HtmlFrame'
 import { MermaidView } from './MermaidView'
-import { PythonRunner } from './PythonRunner'
+import { ProgramRunner } from './ProgramRunner'
 import { TableView } from './TableView'
 
 export function artifactKindOf(item: ContentBlock) {
@@ -70,8 +70,8 @@ export function ArtifactPreview({ artifact, compact = false }: { artifact: AiArt
     return <TableView body={artifact.body} />
   }
 
-  if (artifact.kind === 'python') {
-    return <PythonRunner title={artifact.title} source={artifact.body} />
+  if (artifact.kind === 'python' || artifact.kind === 'php' || artifact.kind === 'java') {
+    return <ProgramRunner language={artifact.kind} title={artifact.title} source={artifact.body} />
   }
 
   if (artifact.kind === 'code' || artifact.kind === 'javascript') {
