@@ -1,5 +1,7 @@
 FROM node:20-alpine
 
+RUN apk add --no-cache python3 php openjdk21-jdk
+
 WORKDIR /app
 
 COPY package.json package-lock.json .npmrc ./

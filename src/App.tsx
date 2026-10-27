@@ -51,7 +51,7 @@ function Shell() {
         <main ref={mainRef} className="flex min-w-0 flex-1">
           {rightOpen ? (
             <div className="relative z-20 flex h-full shrink-0" style={{ width: rightWidth }}>
-              <div className="min-w-0 flex-1">
+              <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                 <RightPanel />
               </div>
               <button

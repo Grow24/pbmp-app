@@ -4,7 +4,7 @@ import { EChartPanel, parsePanelSpec } from '../components/ai/EChartPanel'
 import { EChartView } from '../components/ai/EChartView'
 import { HtmlFrame } from '../components/ai/HtmlFrame'
 import { MermaidView } from '../components/ai/MermaidView'
-import { PythonRunner } from '../components/ai/PythonRunner'
+import { ProgramRunner } from '../components/ai/ProgramRunner'
 import { TableView } from '../components/ai/TableView'
 
 function inline(text: string): ReactNode[] {
@@ -77,10 +77,10 @@ export function MarkdownView({ text }: { text: string }) {
             <CodeRunner title="Script" source={body.join('\n')} />
           </div>,
         )
-      } else if (lang === 'python') {
+      } else if (lang === 'python' || lang === 'php' || lang === 'java') {
         nodes.push(
           <div key={`c-${i}`} className="my-2">
-            <PythonRunner title="Python" source={body.join('\n')} />
+            <ProgramRunner language={lang} title={lang === 'php' ? 'PHP' : lang === 'java' ? 'Java' : 'Python'} source={body.join('\n')} />
           </div>,
         )
       } else if (lang === 'csv' || lang === 'table') {

@@ -88,7 +88,7 @@ export function RightPanel() {
   }
 
   return (
-    <aside className="flex h-full w-full min-w-0 flex-col border-r border-slate-200 bg-white">
+    <aside className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border-r border-slate-200 bg-white">
       <div className="flex h-10 items-center justify-between border-b border-slate-200 px-3">
         <span className="min-w-0">
           <span className="block text-[13px] font-medium text-slate-800">

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { runProgram } from './code-run.js'
 import { dbConfig, pool } from './db.js'
 import {
   catalogSnapshot,
@@ -408,7 +409,16 @@ function echartsTitle(body, fallback = 'EChart') {
 }
 
 function pushParsedArtifact(artifacts, seen, fenceKind, raw, fallbackTitle) {
-  if (fenceKind === 'mermaid' || fenceKind === 'html' || fenceKind === 'svg' || fenceKind === 'code' || fenceKind === 'python' || fenceKind === 'table') {
+  if (
+    fenceKind === 'mermaid' ||
+    fenceKind === 'html' ||
+    fenceKind === 'svg' ||
+    fenceKind === 'code' ||
+    fenceKind === 'python' ||
+    fenceKind === 'php' ||
+    fenceKind === 'java' ||
+    fenceKind === 'table'
+  ) {
     const body = String(raw || '').trim()
     if (!body) return
     const key = `${fenceKind}:${body}`
@@ -450,6 +460,8 @@ function parseArtifacts(text) {
     { kind: 'svg', re: /```svg\s*\n([\s\S]*?)```/gi, title: 'SVG graphic' },
     { kind: 'table', re: /```(?:csv|table)\s*\n([\s\S]*?)```/gi, title: 'Table' },
     { kind: 'python', re: /```python\s*\n([\s\S]*?)```/gi, title: 'Python' },
+    { kind: 'php', re: /```php\s*\n([\s\S]*?)```/gi, title: 'PHP' },
+    { kind: 'java', re: /```java\s*\n([\s\S]*?)```/gi, title: 'Java' },
     { kind: 'code', re: /```(?:javascript|js)\s*\n([\s\S]*?)```/gi, title: 'Runnable script' },
   ]
   for (const fence of fences) {
@@ -461,7 +473,7 @@ function parseArtifacts(text) {
       pushParsedArtifact(artifacts, seen, fence.kind, raw, fence.title)
     }
   }
-  const trailing = text.match(/```(mermaid|echarts-panel|echart-panel|echarts|echart|json|html|svg|csv|table|python|javascript|js)\s*\n([\s\S]*)$/i)
+  const trailing = text.match(/```(mermaid|echarts-panel|echart-panel|echarts|echart|json|html|svg|csv|table|python|php|java|javascript|js)\s*\n([\s\S]*)$/i)
   if (trailing && !/```/.test(trailing[2])) {
     const lang = trailing[1].toLowerCase()
     const kind =
@@ -487,7 +499,11 @@ function parseArtifacts(text) {
                 ? 'Table'
                 : kind === 'python'
                   ? 'Python'
-                  : kind === 'code'
+                  : kind === 'php'
+                    ? 'PHP'
+                    : kind === 'java'
+                      ? 'Java'
+                      : kind === 'code'
                     ? 'Runnable script'
                     : 'EChart'
     pushParsedArtifact(artifacts, seen, kind, trailing[2].trim(), title)
@@ -671,6 +687,107 @@ function wantsScript(text) {
 
 function wantsPython(text) {
   return /\bpython\b/i.test(text)
+}
+
+function requestedLanguage(text) {
+  const source = String(text || '')
+  const options = [
+    ['php', /\bphp\b/gi],
+    ['python', /\bpython\b/gi],
+    ['java', /\bjava\b/gi],
+  ]
+  let best = ''
+  let at = Infinity
+  for (const [name, re] of options) {
+    for (const match of source.matchAll(re)) {
+      if (name === 'java' && /^javascript\b/i.test(source.slice(match.index))) continue
+      if (match.index < at) {
+        best = name
+        at = match.index
+      }
+    }
+  }
+  return best
+}
+
+function requestedOperation(text) {
+  const source = String(text || '')
+  const rules = [
+    ['square', /square|squared|वर्ग|varg/i],
+    ['division', /divis|divide|divided|भाग|bhag/i],
+    ['multiplication', /multipl|product|गुणा|guna/i],
+    ['addition', /addit|\badd\b|\bsum\b|जोड़|jod|\bplus\b/i],
+  ]
+  let found = ''
+  let at = Infinity
+  for (const [name, re] of rules) {
+    const match = re.exec(source)
+    if (match && match.index < at) {
+      found = name
+      at = match.index
+    }
+  }
+  return found || 'addition'
+}
+
+function mentionedNumbers(text) {
+  return [...String(text || '').matchAll(/-?\d+(?:\.\d+)?/g)].map((match) => match[0])
+}
+
+function programSource(language, operation, presets) {
+  const labels = operation === 'square' ? ['Number'] : operation === 'division' ? ['Dividend', 'Divisor'] : ['First number', 'Second number']
+  const fields = labels.map((label, index) => (presets[index] ? `${label}=${presets[index]}` : label)).join(' | ')
+  const mark = language === 'python' ? '# pbmp-inputs: ' : '// pbmp-inputs: '
+  if (language === 'php') {
+    const body =
+      operation === 'square'
+        ? `if (!is_numeric($a)) { echo "Enter numbers only", PHP_EOL; exit; }\nshow_number($a * $a);`
+        : operation === 'division'
+          ? `if (!is_numeric($a) || !is_numeric($b)) { echo "Enter numbers only", PHP_EOL; exit; }\nif ((float) $b == 0.0) { echo "Cannot divide by zero", PHP_EOL; exit; }\nshow_number($a / $b);`
+          : operation === 'multiplication'
+            ? `if (!is_numeric($a) || !is_numeric($b)) { echo "Enter numbers only", PHP_EOL; exit; }\nshow_number($a * $b);`
+            : `if (!is_numeric($a) || !is_numeric($b)) { echo "Enter numbers only", PHP_EOL; exit; }\nshow_number($a + $b);`
+    const reads = operation === 'square'
+      ? '$a = trim(fgets(STDIN));'
+      : '$a = trim(fgets(STDIN));\n$b = trim(fgets(STDIN));'
+    return `<?php\n${mark}${fields}\nfunction show_number($value) {\n  echo ((float) $value == (int) $value) ? (int) $value : $value, PHP_EOL;\n}\n${reads}\n${body}\n`
+  }
+  if (language === 'java') {
+    const reads = operation === 'square'
+      ? 'double a = Double.parseDouble(in.nextLine().trim());'
+      : 'double a = Double.parseDouble(in.nextLine().trim());\n      double b = Double.parseDouble(in.nextLine().trim());'
+    const body =
+      operation === 'square'
+        ? 'show(a * a);'
+        : operation === 'division'
+          ? 'if (b == 0) { System.out.println("Cannot divide by zero"); return; }\n      show(a / b);'
+          : operation === 'multiplication'
+            ? 'show(a * b);'
+            : 'show(a + b);'
+    return `${mark}${fields}\nimport java.util.Scanner;\n\npublic class Main {\n  static void show(double value) {\n    if (value == Math.rint(value)) System.out.println((long) value);\n    else System.out.println(value);\n  }\n\n  public static void main(String[] args) {\n    Scanner in = new Scanner(System.in);\n    try {\n      ${reads}\n      ${body}\n    } catch (NumberFormatException ex) {\n      System.out.println("Enter numbers only");\n    }\n  }\n}\n`
+  }
+  const reads = operation === 'square' ? 'a = float(input())' : 'a = float(input())\n    b = float(input())'
+  const body =
+    operation === 'square'
+      ? 'show(a * a)'
+      : operation === 'division'
+        ? 'if b == 0:\n        print("Cannot divide by zero")\n    else:\n        show(a / b)'
+        : operation === 'multiplication'
+          ? 'show(a * b)'
+          : 'show(a + b)'
+  return `${mark}${fields}\ndef show(value):\n    print(int(value) if float(value).is_integer() else value)\n\ntry:\n    ${reads}\nexcept ValueError:\n    print("Enter numbers only")\nelse:\n    ${body}\n`
+}
+
+function localProgramReply(language, operation, presets) {
+  const label = language === 'php' ? 'PHP' : language === 'java' ? 'Java' : 'Python'
+  const ask = operation === 'square' ? 'Enter the number below and press Run.' : 'Enter the two numbers below and press Run.'
+  return [
+    `${label} program for ${operation}. ${ask} The result appears here.`,
+    '',
+    `\`\`\`${language}`,
+    programSource(language, operation, presets).trimEnd(),
+    '```',
+  ].join('\n')
 }
 
 function wantsDiagram(text) {
@@ -975,7 +1092,7 @@ function runnablePieces(message) {
   const text = String(message || '').trim()
   if (!text) return []
   const fenced = parseArtifacts(text).filter((item) =>
-    item.kind === 'html' || item.kind === 'svg' || item.kind === 'code' || item.kind === 'python' || item.kind === 'table',
+    ['html', 'svg', 'code', 'python', 'php', 'java', 'table'].includes(item.kind),
   )
   if (fenced.length) {
     return fenced.map((item) => (item.kind === 'html' ? { ...item, title: htmlHeading(item.body) } : item))
@@ -1003,12 +1120,12 @@ function runnableReply(message) {
   const pieces = runnablePieces(message)
   if (!pieces.length) return ''
   const hasHtml = pieces.some((item) => item.kind === 'html')
-  const hasPython = pieces.some((item) => item.kind === 'python')
+  const hasProgram = pieces.some((item) => item.kind === 'python' || item.kind === 'php' || item.kind === 'java')
   const hasTable = pieces.some((item) => item.kind === 'table')
   const note = hasHtml
     ? 'The HTML page is open in **Artifacts**. The heading, text, and button render there. Click the button and its label changes. **Save to canvas** pins the same page on the board.'
-    : hasPython
-      ? 'Python is running in **Artifacts**. Printed lines show on that card. **Save to canvas** pins the same script on the board.'
+    : hasProgram
+      ? 'Enter the values on the card and press Run. The result appears there. **Save to canvas** pins the same program on the board.'
       : hasTable
         ? 'The table is open in **Artifacts**. **Save to canvas** pins the same grid on the board.'
         : 'The script is running in **Artifacts**. The result and console.log show on that card. **Save to canvas** pins it on the board.'
@@ -1139,9 +1256,14 @@ function localAssistantReply({ message, context, imageName, imageData }) {
   if (intent === 'report' || wantsReport(message)) parts.push(report)
   if (intent === 'diagram' || wantsDiagram(message)) parts.push(diagram)
   if (intent === 'chart' || wantsChart(message)) parts.push(chart)
+  const language = requestedLanguage(message)
+  const operation = requestedOperation(message)
+  const namedOperation = /square|squared|वर्ग|varg|divis|divide|divided|भाग|bhag|multipl|product|गुणा|guna|addit|\badd\b|\bsum\b|जोड़|jod|\bplus\b/i.test(message)
+  const wantsGeneratedProgram = Boolean(language && (namedOperation || /\b(program|script)\b/i.test(message)))
   if (wantsTable(message)) parts.push(localTableReply(title, blocks))
-  if (wantsScript(message)) parts.push(localScriptReply(title, blocks))
-  if (wantsPython(message)) parts.push(localPythonReply(title))
+  if (wantsScript(message) && language !== 'java') parts.push(localScriptReply(title, blocks))
+  if (wantsGeneratedProgram) parts.push(localProgramReply(language, operation, mentionedNumbers(message)))
+  else if (wantsPython(message)) parts.push(localPythonReply(title))
   if (parts.length) return speak(parts.filter(Boolean).join('\n\n---\n\n'))
 
   const seen = new Set()
@@ -1249,7 +1371,7 @@ function buildModelMessages({ history, context, message, imageData }) {
     'When asked for a panel, dashboard of charts, or multiple chart types together, include one ```echarts-panel fenced block: { "panel": true, "title": "...", "charts": [ { "type": "bar", "title": "Bar", "option": { ... } }, ... ] }. The workbench renders those types in one panel. Use numbers from the canvas facts after any active page filters.',
     'When asked for a table or CSV, include one ```csv fenced block with a header row. The workbench renders it as a table artifact.',
     'When asked to run JavaScript or draw on the canvas, include one ```javascript fenced block. It runs in a sandbox. Use pbmp.table(rows), pbmp.text(value), pbmp.html(html), or pbmp.canvas(width, height). console.log is shown under the result.',
-    'When asked to run Python, include one ```python fenced block. It runs in a sandbox. Print the result. Do not import packages that need network installs.',
+    'When asked to create or run a program in Python, PHP, or Java, include one fenced block in that language. If it needs values from the user, do not hardcode them. Start the block with a comment exactly like `# pbmp-inputs: First number | Second number` (use `// pbmp-inputs:` in PHP and Java). Read one stdin line per input, in that order, and print only the result. A square needs one number. Addition, multiplication, and division need two. For division by zero, print "Cannot divide by zero". For Java, use a public class named Main. The workbench shows those input boxes on the card and runs the program after Run is pressed. Do not describe the result as if you already ran it.',
     'Keep everyday answers concise unless the user asks for a full write-up.',
     skillLine(context),
     '',
@@ -1305,6 +1427,15 @@ async function readOpenAiStream(body, onDelta) {
 export { parseArtifacts }
 
 export function registerAiRoutes(app) {
+  app.post('/api/ai/run', async (req, res) => {
+    try {
+      const result = await runProgram(req.body?.language, req.body?.source, req.body?.stdin)
+      res.json(result)
+    } catch (error) {
+      res.status(400).json({ error: error.message || 'The program could not run' })
+    }
+  })
+
   app.post('/api/ai/tts', async (req, res) => {
     const config = aiConfig()
     if (!config.configured) {
