@@ -408,7 +408,7 @@ function echartsTitle(body, fallback = 'EChart') {
 }
 
 function pushParsedArtifact(artifacts, seen, fenceKind, raw, fallbackTitle) {
-  if (fenceKind === 'mermaid' || fenceKind === 'html' || fenceKind === 'svg' || fenceKind === 'code') {
+  if (fenceKind === 'mermaid' || fenceKind === 'html' || fenceKind === 'svg' || fenceKind === 'code' || fenceKind === 'python' || fenceKind === 'table') {
     const body = String(raw || '').trim()
     if (!body) return
     const key = `${fenceKind}:${body}`
@@ -448,6 +448,8 @@ function parseArtifacts(text) {
     { kind: 'json', re: /```json\s*\n([\s\S]*?)```/gi, title: 'EChart' },
     { kind: 'html', re: /```html\s*\n([\s\S]*?)```/gi, title: 'Generated page' },
     { kind: 'svg', re: /```svg\s*\n([\s\S]*?)```/gi, title: 'SVG graphic' },
+    { kind: 'table', re: /```(?:csv|table)\s*\n([\s\S]*?)```/gi, title: 'Table' },
+    { kind: 'python', re: /```python\s*\n([\s\S]*?)```/gi, title: 'Python' },
     { kind: 'code', re: /```(?:javascript|js)\s*\n([\s\S]*?)```/gi, title: 'Runnable script' },
   ]
   for (const fence of fences) {
@@ -459,11 +461,19 @@ function parseArtifacts(text) {
       pushParsedArtifact(artifacts, seen, fence.kind, raw, fence.title)
     }
   }
-  const trailing = text.match(/```(mermaid|echarts-panel|echart-panel|echarts|echart|json|html|svg|javascript|js)\s*\n([\s\S]*)$/i)
+  const trailing = text.match(/```(mermaid|echarts-panel|echart-panel|echarts|echart|json|html|svg|csv|table|python|javascript|js)\s*\n([\s\S]*)$/i)
   if (trailing && !/```/.test(trailing[2])) {
     const lang = trailing[1].toLowerCase()
     const kind =
-      lang === 'echart-panel' ? 'echarts-panel' : lang === 'echart' ? 'echarts' : lang === 'javascript' || lang === 'js' ? 'code' : lang
+      lang === 'echart-panel'
+        ? 'echarts-panel'
+        : lang === 'echart'
+          ? 'echarts'
+          : lang === 'javascript' || lang === 'js'
+            ? 'code'
+            : lang === 'csv'
+              ? 'table'
+              : lang
     const title =
       kind === 'mermaid'
         ? 'Process diagram'
@@ -473,9 +483,13 @@ function parseArtifacts(text) {
             ? 'Generated page'
             : kind === 'svg'
               ? 'SVG graphic'
-              : kind === 'code'
-                ? 'Runnable script'
-                : 'EChart'
+              : kind === 'table'
+                ? 'Table'
+                : kind === 'python'
+                  ? 'Python'
+                  : kind === 'code'
+                    ? 'Runnable script'
+                    : 'EChart'
     pushParsedArtifact(artifacts, seen, kind, trailing[2].trim(), title)
   }
   const prose = text.replace(/```[\s\S]*?```/g, '').replace(/^#{1,3} .+$/gm, '').trim()
@@ -645,6 +659,18 @@ function summarizeContext(context = {}) {
   ]
     .filter(Boolean)
     .join('\n')
+}
+
+function wantsTable(text) {
+  return /\b(csv|spreadsheet|data table|make a table|show a table)\b/i.test(text) || /\btable\b/i.test(text)
+}
+
+function wantsScript(text) {
+  return /\b(javascript|runnable script)\b/i.test(text) || /\brun\b[\s\S]{0,24}\b(code|script|javascript)\b/i.test(text)
+}
+
+function wantsPython(text) {
+  return /\bpython\b/i.test(text)
 }
 
 function wantsDiagram(text) {
@@ -948,7 +974,9 @@ function htmlHeading(body) {
 function runnablePieces(message) {
   const text = String(message || '').trim()
   if (!text) return []
-  const fenced = parseArtifacts(text).filter((item) => item.kind === 'html' || item.kind === 'svg' || item.kind === 'code')
+  const fenced = parseArtifacts(text).filter((item) =>
+    item.kind === 'html' || item.kind === 'svg' || item.kind === 'code' || item.kind === 'python' || item.kind === 'table',
+  )
   if (fenced.length) {
     return fenced.map((item) => (item.kind === 'html' ? { ...item, title: htmlHeading(item.body) } : item))
   }
@@ -967,7 +995,7 @@ function runnablePieces(message) {
 }
 
 function fenceFor(item) {
-  const lang = item.kind === 'code' ? 'javascript' : item.kind
+  const lang = item.kind === 'code' ? 'javascript' : item.kind === 'table' ? 'csv' : item.kind
   return `\`\`\`${lang}\n${item.body}\n\`\`\``
 }
 
@@ -975,9 +1003,15 @@ function runnableReply(message) {
   const pieces = runnablePieces(message)
   if (!pieces.length) return ''
   const hasHtml = pieces.some((item) => item.kind === 'html')
+  const hasPython = pieces.some((item) => item.kind === 'python')
+  const hasTable = pieces.some((item) => item.kind === 'table')
   const note = hasHtml
     ? 'The HTML page is open in **Artifacts**. The heading, text, and button render there. Click the button and its label changes. **Save to canvas** pins the same page on the board.'
-    : 'The script is running in **Artifacts**. The result and console.log show on that card. **Save to canvas** pins it on the board.'
+    : hasPython
+      ? 'Python is running in **Artifacts**. Printed lines show on that card. **Save to canvas** pins the same script on the board.'
+      : hasTable
+        ? 'The table is open in **Artifacts**. **Save to canvas** pins the same grid on the board.'
+        : 'The script is running in **Artifacts**. The result and console.log show on that card. **Save to canvas** pins it on the board.'
   return [note, '', ...pieces.map(fenceFor)].join('\n')
 }
 
@@ -995,6 +1029,56 @@ function localAgentReply(agent, { title, blocks, report, canvasRead }) {
   if (agent.slug === 'project-manager') return [voice, '', localRiskReply(title, blocks)].join('\n')
   const instruction = String(agent.instruction || agent.role || '').trim()
   return [voice, '', instruction, '', canvasRead].filter(Boolean).join('\n')
+}
+
+function csvCell(value) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').replace(/`/g, "'").trim()
+  return /[",]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
+
+function localTableReply(title, blocks) {
+  const rows = (Array.isArray(blocks) ? blocks : []).filter((block) => block.title || block.value || block.body).slice(0, 8)
+  const lines = ['Title,Value,Note']
+  for (const block of rows) {
+    lines.push(
+      [
+        csvCell(block.title || block.type || ''),
+        csvCell(block.value || ''),
+        csvCell(String(block.body || block.subtitle || '').slice(0, 80)),
+      ].join(','),
+    )
+  }
+  if (lines.length === 1) lines.push([csvCell(title), '', 'No structured rows on this canvas'].join(','))
+  return [`Table from **${title}**. Save it to the canvas to keep the grid on the board.`, '', '```csv', ...lines, '```'].join('\n')
+}
+
+function localScriptReply(title, blocks) {
+  const rows = (Array.isArray(blocks) ? blocks : [])
+    .filter((block) => block.title)
+    .slice(0, 5)
+    .map((block) => [String(block.title).slice(0, 40), String(block.value || block.subtitle || '').slice(0, 40)])
+  return [
+    `JavaScript is running beside **${title}**. The sandbox can print, draw, or build a table.`,
+    '',
+    '```javascript',
+    `const rows = ${JSON.stringify([['Title', 'Value'], ...rows])};`,
+    'pbmp.table(rows);',
+    "console.log('Canvas rows: ' + Math.max(rows.length - 1, 0));",
+    '```',
+  ].join('\n')
+}
+
+function localPythonReply(title) {
+  const label = String(title || 'this canvas').replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  return [
+    `Python is running beside **${title}**. Printed lines show under the script.`,
+    '',
+    '```python',
+    `print("Canvas: ${label}")`,
+    'values = [1, 2, 3]',
+    'print(sum(values))',
+    '```',
+  ].join('\n')
 }
 
 function localAssistantReply({ message, context, imageName, imageData }) {
@@ -1055,6 +1139,9 @@ function localAssistantReply({ message, context, imageName, imageData }) {
   if (intent === 'report' || wantsReport(message)) parts.push(report)
   if (intent === 'diagram' || wantsDiagram(message)) parts.push(diagram)
   if (intent === 'chart' || wantsChart(message)) parts.push(chart)
+  if (wantsTable(message)) parts.push(localTableReply(title, blocks))
+  if (wantsScript(message)) parts.push(localScriptReply(title, blocks))
+  if (wantsPython(message)) parts.push(localPythonReply(title))
   if (parts.length) return speak(parts.filter(Boolean).join('\n\n---\n\n'))
 
   const seen = new Set()
@@ -1077,7 +1164,7 @@ function localAssistantReply({ message, context, imageName, imageData }) {
     '',
     `You asked: “${message.slice(0, 280)}”`,
     '',
-    'I can turn this into a board summary, a Mermaid process map, or an EChart (bar, pie, line, radar, funnel, gauge, scatter, heatmap) — ask for any, then save the artifact back into PBMP.',
+    'I can turn this into a board summary, a table, a Mermaid process map, an EChart, or a JavaScript or Python script that runs on the canvas — ask for any, then save the artifact back into PBMP.',
   ]
     .filter(Boolean)
     .join('\n')
@@ -1160,6 +1247,9 @@ function buildModelMessages({ history, context, message, imageData }) {
     'When asked for a process map, flowchart or architecture diagram, include a mermaid fenced block.',
     'When asked for a chart, EChart, bar, pie, line, radar, funnel, gauge, scatter or heatmap, include a ```echarts fenced block (one Apache ECharts option as JSON only — no comments, no functions).',
     'When asked for a panel, dashboard of charts, or multiple chart types together, include one ```echarts-panel fenced block: { "panel": true, "title": "...", "charts": [ { "type": "bar", "title": "Bar", "option": { ... } }, ... ] }. The workbench renders those types in one panel. Use numbers from the canvas facts after any active page filters.',
+    'When asked for a table or CSV, include one ```csv fenced block with a header row. The workbench renders it as a table artifact.',
+    'When asked to run JavaScript or draw on the canvas, include one ```javascript fenced block. It runs in a sandbox. Use pbmp.table(rows), pbmp.text(value), pbmp.html(html), or pbmp.canvas(width, height). console.log is shown under the result.',
+    'When asked to run Python, include one ```python fenced block. It runs in a sandbox. Print the result. Do not import packages that need network installs.',
     'Keep everyday answers concise unless the user asks for a full write-up.',
     skillLine(context),
     '',

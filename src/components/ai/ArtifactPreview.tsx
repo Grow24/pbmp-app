@@ -6,6 +6,8 @@ import { EChartPanel, parsePanelSpec } from './EChartPanel'
 import { EChartView } from './EChartView'
 import { HtmlFrame } from './HtmlFrame'
 import { MermaidView } from './MermaidView'
+import { PythonRunner } from './PythonRunner'
+import { TableView } from './TableView'
 
 export function artifactKindOf(item: ContentBlock) {
   return String(item.value || (typeof item.extra.kind === 'string' ? item.extra.kind : 'markdown'))
@@ -62,6 +64,14 @@ export function ArtifactPreview({ artifact, compact = false }: { artifact: AiArt
 
   if (artifact.kind === 'html') {
     return <HtmlFrame title={artifact.title} html={artifact.body} />
+  }
+
+  if (artifact.kind === 'table' || artifact.kind === 'csv') {
+    return <TableView body={artifact.body} />
+  }
+
+  if (artifact.kind === 'python') {
+    return <PythonRunner title={artifact.title} source={artifact.body} />
   }
 
   if (artifact.kind === 'code' || artifact.kind === 'javascript') {

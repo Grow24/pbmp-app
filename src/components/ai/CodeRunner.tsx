@@ -19,6 +19,7 @@ export function runnableHtml(source: string) {
 <div id="pbmp-app"></div>
 <pre id="pbmp-log"></pre>
 <script>
+(async () => {
 const __app = document.getElementById('pbmp-app');
 const __logEl = document.getElementById('pbmp-log');
 const __lines = [];
@@ -33,8 +34,53 @@ console.log = __write;
 console.info = __write;
 console.warn = __write;
 console.error = __write;
+function __cell(value) {
+  const node = document.createElement('td');
+  node.style.cssText = 'border-bottom:1px solid #e2e8f0;padding:6px 8px';
+  node.textContent = value == null ? '' : String(value);
+  return node;
+}
+const pbmp = {
+  text(value) { __app.textContent = value == null ? '' : String(value); },
+  html(value) { __app.innerHTML = value == null ? '' : String(value); },
+  table(rows) {
+    const data = Array.isArray(rows) ? rows : [];
+    const objects = data.length && data.every((row) => row && typeof row === 'object' && !Array.isArray(row));
+    const columns = objects ? [...new Set(data.flatMap((row) => Object.keys(row)))] : (data[0] || []).map(String);
+    const body = objects ? data.map((row) => columns.map((column) => row[column])) : data.slice(1);
+    const table = document.createElement('table');
+    table.style.cssText = 'width:100%;border-collapse:collapse;font:12px/1.4 ui-sans-serif,system-ui,sans-serif';
+    const head = document.createElement('tr');
+    columns.forEach((column) => {
+      const cell = document.createElement('th');
+      cell.style.cssText = 'border-bottom:1px solid #e2e8f0;padding:6px 8px;text-align:left;color:#64748b';
+      cell.textContent = String(column);
+      head.appendChild(cell);
+    });
+    const thead = document.createElement('thead');
+    thead.appendChild(head);
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    body.forEach((row) => {
+      const line = document.createElement('tr');
+      columns.forEach((_, index) => line.appendChild(__cell(row[index])));
+      tbody.appendChild(line);
+    });
+    table.appendChild(tbody);
+    __app.replaceChildren(table);
+    return table;
+  },
+  canvas(width, height) {
+    const board = document.createElement('canvas');
+    board.width = width || 360;
+    board.height = height || 180;
+    board.style.maxWidth = '100%';
+    __app.replaceChildren(board);
+    return board;
+  },
+};
 try {
-  const __result = (function () {
+  const __result = await (async function () {
 ${safe}
   })();
   if (__result !== undefined && __app.childNodes.length === 0) {
@@ -43,6 +89,7 @@ ${safe}
 } catch (error) {
   __app.textContent = error && error.stack ? error.stack : String(error);
 }
+})();
 </script>
 </body>
 </html>`
@@ -54,7 +101,7 @@ export function CodeRunner({ title, source }: { title: string; source: string })
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Runs in this canvas</p>
+        <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">JavaScript in this canvas</p>
         <button type="button" className="ui-btn h-7 px-2" onClick={() => setRunId((value) => value + 1)}>
           Run again
         </button>

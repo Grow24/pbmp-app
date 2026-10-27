@@ -8,7 +8,7 @@ export function ArtifactsPane() {
   if (!artifacts.length) {
     return (
       <div className="p-4 text-[13px] leading-relaxed text-slate-500">
-        Ask in Chat for a chart, a process diagram, an HTML page, or a script. It shows up here, and you can open it in this panel, on the main canvas, or in a new window. Add to Library keeps a copy that is not tied to this page.
+        Ask in Chat for a chart, a process diagram, a table, an HTML page, JavaScript, or Python. It shows up here, and you can open it in this panel, on the main canvas, or in a new window. Add to Library keeps a copy that is not tied to this page.
       </div>
     )
   }
