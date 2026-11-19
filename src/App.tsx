@@ -11,6 +11,8 @@ import { AiProvider, useAi } from './context/AiContext'
 import { useRef } from 'react'
 import { WorkbenchProvider, useWorkbench } from './context/WorkbenchContext'
 import { usePointerDelta } from './hooks/usePointerDelta'
+import { DesktopMachineButton } from './components/desktop/DesktopMachineButton'
+import { isPbmpDesktop } from './lib/desktop'
 
 function Shell() {
   const { rightOpen, rightWidth, setRightWidth, loading, error } = useWorkbench()
@@ -27,8 +29,9 @@ function Shell() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center bg-[#f5f7fa] text-sm text-slate-500">
-        Loading configuration from MySQL…
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-[#f5f7fa] px-6 text-center">
+        <p className="text-sm text-slate-500">Loading configuration from MySQL…</p>
+        {isPbmpDesktop() ? <DesktopMachineButton /> : null}
       </div>
     )
   }
@@ -39,6 +42,12 @@ function Shell() {
         <p className="text-sm font-medium text-slate-800">Could not load workbench config</p>
         <p className="max-w-md text-[13px] text-slate-500">{error}</p>
         <p className="text-[13px] text-slate-400">Check that MySQL is reachable, then refresh.</p>
+        {isPbmpDesktop() ? (
+          <div className="mt-3">
+            <p className="mb-2 text-[12px] text-slate-500">Desktop host is running. Native system info still works:</p>
+            <DesktopMachineButton />
+          </div>
+        ) : null}
       </div>
     )
   }

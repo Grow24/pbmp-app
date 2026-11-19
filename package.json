@@ -13,7 +13,10 @@
     "build": "vite build",
     "typecheck": "tsc -b",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build"
   },
   "engines": {
     "node": ">=20"
@@ -25,6 +28,7 @@
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@mui/icons-material": "^9.4.0",
     "@mui/material": "^9.4.0",
+    "@tauri-apps/api": "^2.12.4",
     "@vitejs/plugin-react": "^6.1.0",
     "autoprefixer": "^10.5.4",
     "cors": "^2.8.6",
@@ -49,6 +53,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
